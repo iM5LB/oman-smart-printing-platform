@@ -7,7 +7,7 @@ export class StoresService {
   constructor(@Inject(PRISMA) private readonly db: PrismaClient) {}
 
   async findBySlug(slug: string) {
-    const store = await this.db.store.findUnique({
+    const store = await this.db.store.findFirst({
       where: { slug, isActive: true },
       include: { openingHours: { orderBy: { dayOfWeek: 'asc' } } },
     });
@@ -38,7 +38,7 @@ export class StoresService {
   }
 
   async getOrderConfig(slug: string) {
-    const store = await this.db.store.findUnique({
+    const store = await this.db.store.findFirst({
       where: { slug, isActive: true },
       include: {
         pricingRules: { where: { isActive: true } },

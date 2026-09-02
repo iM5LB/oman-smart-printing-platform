@@ -22,7 +22,7 @@ export class UploadsService {
     file_size_bytes: number;
     page_count: number;
   }> {
-    const store = await this.db.store.findUnique({ where: { slug: storeSlug, isActive: true } });
+    const store = await this.db.store.findFirst({ where: { slug: storeSlug, isActive: true } });
     if (!store) throw new NotFoundException('المكتبة غير موجودة');
 
     this.validateFile(file);

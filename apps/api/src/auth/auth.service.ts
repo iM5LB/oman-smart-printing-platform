@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { createHash, randomBytes, randomInt } from 'crypto';
 import { PrismaClient } from '@omsp/database';
-import { formatOMR, isValidOmaniPhone, normalizeOmaniPhone } from '@omsp/shared';
+import { formatOMR, isValidPhone, normalizePhone } from '@omsp/shared';
 import { PRISMA } from '../prisma/prisma.module';
 
 const OTP_TTL_MS = 5 * 60 * 1000;
@@ -133,7 +133,7 @@ export class AuthService {
   }
 
   async listOrdersForPhone(phone: string, storeSlug: string) {
-    const store = await this.db.store.findUnique({ where: { slug: storeSlug, isActive: true } });
+    const store = await this.db.store.findFirst({ where: { slug: storeSlug, isActive: true } });
     if (!store) throw new NotFoundException('المكتبة غير موجودة');
 
     const orders = await this.db.order.findMany({
@@ -167,10 +167,10 @@ export class AuthService {
   }
 
   private requirePhone(phoneRaw: string): string {
-    if (!isValidOmaniPhone(phoneRaw)) {
-      throw new BadRequestException('رقم الهاتف غير صالح. استخدم رقم عماني صحيح');
+    if (!isValidPhone(phoneRaw)) {
+      throw new BadRequestException('رقم الهاتف غير صالح. أدخل رقماً صحيحاً مع رمز الدولة إن لزم');
     }
-    return normalizeOmaniPhone(phoneRaw)!;
+    return normalizePhone(phoneRaw)!;
   }
 
   private hash(value: string): string {
