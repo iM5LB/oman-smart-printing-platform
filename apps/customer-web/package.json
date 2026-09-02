@@ -21,8 +21,7 @@
     "tailwind-merge": "^3.6.0"
   },
   "optionalDependencies": {
-    "@next/swc-linux-x64-gnu": "15.5.25",
-    "@next/swc-linux-x64-musl": "15.5.25"
+    "@next/swc-linux-x64-gnu": "15.5.25"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.0.0",

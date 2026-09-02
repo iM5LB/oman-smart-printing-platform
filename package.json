@@ -23,7 +23,7 @@
     "db:studio": "npm run studio --workspace=@omsp/database",
     "build:api": "turbo run build --filter=@omsp/api",
     "build:web": "turbo run build --filter=@omsp/customer-web",
-    "build:web:render": "npm install --no-save --no-package-lock @next/swc-linux-x64-gnu@15.5.25 @next/swc-linux-x64-musl@15.5.25 && npx turbo run build --filter=@omsp/customer-web",
+    "build:web:render": "npm install --no-save --no-package-lock @next/swc-linux-x64-gnu@15.5.25 && npx turbo run build --filter=@omsp/customer-web",
     "build:library": "turbo run build --filter=@omsp/library-web",
     "start:api": "npm run start --workspace=@omsp/api",
     "start:web": "npm run start --workspace=@omsp/customer-web",
