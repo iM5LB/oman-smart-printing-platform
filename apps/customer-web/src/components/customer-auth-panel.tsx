@@ -208,7 +208,7 @@ export function CustomerAuthPanel({
           {mode === 'phone' && (
             <form onSubmit={handleSendCode} className="space-y-4">
               <p className="text-sm text-text-muted">
-                أدخل رقم هاتفك العماني لعرض طلباتك ومتابعة حالتها
+                أدخل رقم هاتفك لعرض طلباتك ومتابعة حالتها
               </p>
               <label className="block">
                 <span className="option-label">رقم الهاتف</span>
@@ -217,7 +217,7 @@ export function CustomerAuthPanel({
                   dir="ltr"
                   inputMode="tel"
                   autoComplete="tel"
-                  placeholder="9XXXXXXX"
+                  placeholder="+968 9XXXXXXX أو رقم دولي"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   required

@@ -20,7 +20,7 @@ export class StoresService {
       id: store.id,
       slug: store.slug,
       name: store.name,
-      logo_url: store.logoUrl,
+      logo_url: this.publicLogoUrl(store.slug, store.logoUrl),
       phone: store.phone,
       governorate: store.governorate,
       wilayat: store.wilayat,
@@ -35,6 +35,28 @@ export class StoresService {
         is_closed: h.isClosed,
       })),
     };
+  }
+
+  async getLogoKey(slug: string): Promise<string | null> {
+    const store = await this.db.store.findFirst({
+      where: { slug, isActive: true },
+      select: { logoUrl: true },
+    });
+    if (!store?.logoUrl) return null;
+    if (store.logoUrl.startsWith('http') || store.logoUrl.startsWith('data:')) return null;
+    return store.logoUrl;
+  }
+
+  private publicLogoUrl(slug: string, logoUrl: string | null): string | null {
+    if (!logoUrl) return null;
+    if (logoUrl.startsWith('http://') || logoUrl.startsWith('https://') || logoUrl.startsWith('data:')) {
+      return logoUrl;
+    }
+    const base =
+      process.env.PUBLIC_API_URL ??
+      process.env.API_PUBLIC_URL ??
+      `http://localhost:${process.env.API_PORT ?? 4000}`;
+    return `${base.replace(/\/+$/, '')}/api/v1/stores/${slug}/logo`;
   }
 
   async getOrderConfig(slug: string) {

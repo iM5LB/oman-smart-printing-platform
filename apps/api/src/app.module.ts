@@ -30,6 +30,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 
 import { ShopModule } from './shop/shop.module';
 import { AuthModule } from './auth/auth.module';
+import { LibraryModule } from './library/library.module';
 
 @Module({
   imports: [
@@ -49,6 +50,7 @@ import { AuthModule } from './auth/auth.module';
     NotificationsModule,
     ShopModule,
     AuthModule,
+    LibraryModule,
   ],
 })
 export class AppModule {}

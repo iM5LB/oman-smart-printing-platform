@@ -145,8 +145,37 @@ const DEVICE_STATUS_AR: Record<string, string> = {
 const PICKUP_POLICY_AR: Record<string, string> = {
   require_approval: "يتطلب موافقة",
   auto_print: "طباعة تلقائية",
+  print_on_arrival: "طباعة عند الوصول",
   hold_until_paid: "إيقاف حتى الدفع",
 };
+
+const FILE_RETENTION_AR: Record<string, string> = {
+  immediate: "فوري",
+  one_hour: "ساعة واحدة",
+  twenty_four_hours: "24 ساعة",
+  three_days: "3 أيام",
+  seven_days: "7 أيام",
+  forty_eight_hours: "48 ساعة",
+  thirty_days: "30 يوماً",
+  until_collected: "حتى الاستلام",
+};
+
+const QUEUE_PRIORITY_AR: Record<string, string> = {
+  normal: "عادي",
+  high: "مرتفع",
+  urgent: "عاجل",
+  low: "منخفض",
+};
+
+const OMAN_WEEKDAYS = [
+  "السبت",
+  "الأحد",
+  "الإثنين",
+  "الثلاثاء",
+  "الأربعاء",
+  "الخميس",
+  "الجمعة",
+];
 
 export function deviceStatusAr(status: string | null | undefined) {
   return lookup(DEVICE_STATUS_AR, status);
@@ -154,4 +183,17 @@ export function deviceStatusAr(status: string | null | undefined) {
 
 export function pickupPolicyAr(policy: string | null | undefined) {
   return lookup(PICKUP_POLICY_AR, policy);
+}
+
+export function fileRetentionAr(policy: string | null | undefined) {
+  return lookup(FILE_RETENTION_AR, policy);
+}
+
+export function queuePriorityAr(priority: string | null | undefined) {
+  return lookup(QUEUE_PRIORITY_AR, priority);
+}
+
+export function omanWeekdayAr(dayOfWeek: number | null | undefined) {
+  if (dayOfWeek == null || dayOfWeek < 0 || dayOfWeek > 6) return "—";
+  return OMAN_WEEKDAYS[dayOfWeek] ?? "—";
 }

@@ -9,11 +9,21 @@ config({ path: resolve(__dirname, '../../../.env') });
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
+  const defaultOrigins = [
+    'http://localhost:3000',
+    'http://localhost:3001',
+    'http://localhost:1420',
+    'http://127.0.0.1:1420',
+    'tauri://localhost',
+    'https://tauri.localhost',
+    'http://tauri.localhost',
+  ];
+  const envOrigins = (process.env.CORS_ORIGIN ?? process.env.NEXT_PUBLIC_APP_URL ?? '')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
   app.enableCors({
-    origin: (process.env.CORS_ORIGIN ?? process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000')
-      .split(',')
-      .map((o) => o.trim())
-      .filter(Boolean),
+    origin: [...new Set([...defaultOrigins, ...envOrigins])],
     credentials: true,
   });
 

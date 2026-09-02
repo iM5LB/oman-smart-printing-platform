@@ -36,6 +36,7 @@ public partial class MainWindow : Window
     private string _searchQuery = "";
     private string? _ordersStatusFilter;
     private string? _queueCurrentOrderId;
+    private string? _pairChallengeId;
 
     private static readonly Dictionary<string, string[]> OrderStatusFilterGroups = new()
     {
@@ -189,6 +190,7 @@ public partial class MainWindow : Window
                 SetupApiUrl.Text = _settings.ApiUrl;
                 SetupStoreSlug.Text = _settings.StoreSlug;
                 SetupDeviceName.Text = _settings.DeviceName;
+                SetupMode_Changed(SetupUseExistingToken, new RoutedEventArgs());
             }
             else
             {
@@ -325,6 +327,15 @@ public partial class MainWindow : Window
         _api.Configure(_settings.ApiUrl, _settings.DeviceToken);
     }
 
+    private void SetupMode_Changed(object sender, RoutedEventArgs e)
+    {
+        if (!_uiReady && SetupTokenPanel == null) return;
+        var useToken = SetupUseExistingToken.IsChecked == true;
+        SetupTokenPanel.Visibility = useToken ? Visibility.Visible : Visibility.Collapsed;
+        SetupPairPanel.Visibility = useToken ? Visibility.Collapsed : Visibility.Visible;
+        SetupError.Visibility = Visibility.Collapsed;
+    }
+
     private async void SetupSave_Click(object sender, RoutedEventArgs e)
     {
         SetupError.Visibility = Visibility.Collapsed;
@@ -332,23 +343,87 @@ public partial class MainWindow : Window
         _settings.StoreSlug = SetupStoreSlug.Text.Trim();
         _settings.DeviceName = SetupDeviceName.Text.Trim();
 
-        if (SetupUseExistingToken.IsChecked == true)
+        if (SetupUseExistingToken.IsChecked != true)
         {
-            _settings.DeviceToken = SetupDeviceToken.Text.Trim();
-        }
-        else
-        {
-            _api.Configure(_settings.ApiUrl, "");
-            var (_, token, error) = await _api.RegisterDeviceAsync(_settings.StoreSlug, _settings.DeviceName);
-            if (token == null)
-            {
-                SetupError.Text = error ?? "فشل تسجيل الجهاز";
-                SetupError.Visibility = Visibility.Visible;
-                return;
-            }
-            _settings.DeviceToken = token;
+            SetupError.Text = "استخدم إرسال رمز التأكيد، أو فعّل «لدي رمز جهاز»";
+            SetupError.Visibility = Visibility.Visible;
+            return;
         }
 
+        _settings.DeviceToken = SetupDeviceToken.Text.Trim();
+        if (string.IsNullOrWhiteSpace(_settings.DeviceToken))
+        {
+            SetupError.Text = "أدخل رمز الجهاز";
+            SetupError.Visibility = Visibility.Visible;
+            return;
+        }
+
+        await FinishSetupAndConnectAsync();
+    }
+
+    private async void SetupStartPair_Click(object sender, RoutedEventArgs e)
+    {
+        SetupError.Visibility = Visibility.Collapsed;
+        _settings.ApiUrl = SetupApiUrl.Text.Trim();
+        _settings.StoreSlug = SetupStoreSlug.Text.Trim();
+        _settings.DeviceName = SetupDeviceName.Text.Trim();
+        _api.Configure(_settings.ApiUrl, "");
+
+        var password = SetupDevicePassword.Password;
+        if (string.IsNullOrWhiteSpace(password))
+        {
+            SetupError.Text = "أدخل كلمة مرور الجهاز من لوحة المكتبة";
+            SetupError.Visibility = Visibility.Visible;
+            return;
+        }
+
+        var (challengeId, phoneHint, message, devCode, error) = await _api.StartDevicePairAsync(
+            _settings.StoreSlug, password, _settings.DeviceName);
+
+        if (challengeId == null)
+        {
+            SetupError.Text = error ?? "فشل إرسال الرمز";
+            SetupError.Visibility = Visibility.Visible;
+            return;
+        }
+
+        _pairChallengeId = challengeId;
+        SetupOtpPanel.Visibility = Visibility.Visible;
+        SetupStartPairBtn.Content = "إعادة إرسال الرمز";
+        var hint = string.IsNullOrEmpty(phoneHint) ? "" : $" إلى {phoneHint}";
+        SetupOtpHint.Text = $"{message}{hint}" +
+            (string.IsNullOrEmpty(devCode) ? "" : $" — رمز التطوير: {devCode}");
+        SetupOtpCode.Focus();
+    }
+
+    private async void SetupConfirmPair_Click(object sender, RoutedEventArgs e)
+    {
+        SetupError.Visibility = Visibility.Collapsed;
+        if (string.IsNullOrEmpty(_pairChallengeId))
+        {
+            SetupError.Text = "اطلب رمز التأكيد أولاً";
+            SetupError.Visibility = Visibility.Visible;
+            return;
+        }
+
+        _api.Configure(SetupApiUrl.Text.Trim(), "");
+        var (token, error) = await _api.ConfirmDevicePairAsync(_pairChallengeId, SetupOtpCode.Text.Trim());
+        if (token == null)
+        {
+            SetupError.Text = error ?? "فشل التأكيد";
+            SetupError.Visibility = Visibility.Visible;
+            return;
+        }
+
+        _settings.ApiUrl = SetupApiUrl.Text.Trim();
+        _settings.StoreSlug = SetupStoreSlug.Text.Trim();
+        _settings.DeviceName = SetupDeviceName.Text.Trim();
+        _settings.DeviceToken = token;
+        await FinishSetupAndConnectAsync();
+    }
+
+    private async Task FinishSetupAndConnectAsync()
+    {
         _settings.SetupCompleted = true;
         _settings.AutoConnect = true;
         SettingsService.Save(_settings);
@@ -1432,25 +1507,11 @@ public partial class MainWindow : Window
 
     private async void RegisterDevice_Click(object sender, RoutedEventArgs e)
     {
-        _api.Configure(ApiUrlBox.Text.Trim(), DeviceTokenBox.Text.Trim());
-        var (_, token, error) = await _api.RegisterDeviceAsync(
-            RegisterStoreSlug.Text.Trim(),
-            RegisterDeviceName.Text.Trim());
-
-        if (token == null)
-        {
-            RegisterResult.Text = error ?? "فشل التسجيل";
-            RegisterResult.Foreground = new SolidColorBrush(Color.FromRgb(0xEF, 0x44, 0x44));
-        }
-        else
-        {
-            DeviceTokenBox.Text = token;
-            _settings.DeviceToken = token;
-            SettingsService.Save(_settings);
-            RegisterResult.Text = $"تم التسجيل!\nرمز الجهاز:\n{token}";
-            RegisterResult.Foreground = new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E));
-        }
+        RegisterResult.Text =
+            "الربط يتم من شاشة البداية بكلمة مرور الجهاز ورمز SMS، أو بإنشاء رمز من لوحة المكتبة على الويب (منفذ 3001).";
+        RegisterResult.Foreground = new SolidColorBrush(Color.FromRgb(0x94, 0xA3, 0xB8));
         RegisterResult.Visibility = Visibility.Visible;
+        await Task.CompletedTask;
     }
 
     private void AppendLog(string message)
@@ -1655,7 +1716,7 @@ public partial class MainWindow : Window
             OrderNumber = FormatOrderNumber(p.OrderNumber);
             CustomerName = string.IsNullOrWhiteSpace(p.CustomerName) ? "عميل" : p.CustomerName!;
             AmountDisplay = FormatMoney(p.AmountDisplay);
-            MethodLabel = p.InStoreMethod == "cash" ? "نقداً في المتجر"
+            MethodLabel = p.InStoreMethod == "cash" ? "نقداً في المكتبة"
                 : p.InStoreMethod == "card_pos" ? "بطاقة نقطة البيع"
                 : FormatPaymentMethod(p.Method);
             StatusLabel = FormatPaymentStatus(p.Status);

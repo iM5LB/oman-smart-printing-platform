@@ -1,0 +1,63 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #1B4D3E;
+  --color-primary-light: #2A6B56;
+  --color-primary-dark: #12382D;
+  --color-accent: #E8F2EE;
+  --color-gold: #C8952E;
+  --color-background: #F3F6F5;
+  --color-surface: #FFFFFF;
+  --color-text: #14201C;
+  --color-text-muted: #5B6B64;
+  --color-success: #16A34A;
+  --color-warning: #D97706;
+  --color-error: #DC2626;
+  --color-border: #D8E3DE;
+
+  --font-sans: "IBM Plex Sans Arabic", "Noto Sans Arabic", system-ui, sans-serif;
+}
+
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in-up { animation: fade-in-up 0.4s ease-out both; }
+
+.btn-primary {
+  @apply rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-white
+    shadow-md shadow-primary/20 transition hover:bg-primary-light
+    active:scale-[0.98] disabled:opacity-50;
+}
+
+.btn-ghost {
+  @apply rounded-xl border border-border bg-surface px-4 py-2.5 text-sm font-medium
+    text-text transition hover:bg-accent active:scale-[0.98];
+}
+
+.btn-outline {
+  @apply rounded-xl border-2 border-primary bg-surface px-5 py-2.5 text-sm font-semibold
+    text-primary transition hover:bg-accent active:scale-[0.98];
+}
+
+.input-field {
+  @apply w-full rounded-xl border border-border bg-surface px-4 py-3 text-sm text-text
+    outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15;
+}
+
+.card {
+  @apply rounded-2xl border border-border bg-surface shadow-sm;
+}
+
+.label {
+  @apply mb-1.5 block text-sm font-medium text-text;
+}
+
+.shell {
+  min-height: 100dvh;
+  background:
+    radial-gradient(ellipse 90% 50% at 100% 0%, rgb(27 77 62 / 0.12), transparent 55%),
+    radial-gradient(ellipse 70% 40% at 0% 100%, rgb(200 149 46 / 0.08), transparent 50%),
+    var(--color-background);
+}

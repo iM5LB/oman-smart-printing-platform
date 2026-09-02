@@ -14,8 +14,8 @@ import {
   countPagesInRange,
   formatOMR,
   generateTrackingToken,
-  isValidOmaniPhone,
-  normalizeOmaniPhone,
+  isValidPhone,
+  normalizePhone,
 } from '@omsp/shared';
 import { PRISMA } from '../prisma/prisma.module';
 
@@ -62,10 +62,10 @@ export class OrdersService {
       throw new BadRequestException('يجب إضافة ملف واحد على الأقل');
     }
 
-    const phone = normalizeOmaniPhone(dto.customer_phone);
-    if (!phone || !isValidOmaniPhone(dto.customer_phone)) {
+    const phone = normalizePhone(dto.customer_phone);
+    if (!phone || !isValidPhone(dto.customer_phone)) {
       throw new BadRequestException(
-        'رقم الهاتف غير صالح. أدخل رقم عماني مثل 91234567 أو +96891234567',
+        'رقم الهاتف غير صالح. أدخل رقماً مثل 91234567 أو +96891234567 أو +9715XXXXXXX',
       );
     }
 

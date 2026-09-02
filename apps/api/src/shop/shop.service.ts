@@ -48,20 +48,66 @@ export class ShopService {
     const device = await this.db.device.findUnique({ where: { id: deviceId } });
     if (!store || !device) throw new NotFoundException();
 
+    const apiBase = (
+      process.env.PUBLIC_API_URL ??
+      process.env.API_PUBLIC_URL ??
+      process.env.API_URL ??
+      process.env.RENDER_EXTERNAL_URL ??
+      `http://localhost:${process.env.API_PORT ?? 4000}`
+    ).replace(/\/+$/, '');
+
+    const logoUrl = store.logoUrl
+      ? store.logoUrl.startsWith('http://') ||
+        store.logoUrl.startsWith('https://') ||
+        store.logoUrl.startsWith('data:')
+        ? store.logoUrl
+        : `${apiBase}/api/v1/stores/${store.slug}/logo`
+      : null;
+
+    const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? '').replace(/\/+$/, '');
+
     return {
       store: {
         id: store.id,
         slug: store.slug,
         name: store.name,
         phone: store.phone,
+        logo_url: logoUrl,
+        governorate: store.governorate,
+        wilayat: store.wilayat,
+        area: store.area,
+        address: store.address,
+        latitude: store.latitude,
+        longitude: store.longitude,
+        is_active: store.isActive,
+        order_number_prefix: store.orderNumberPrefix,
         auto_print_paid_orders: store.autoPrintPaidOrders,
         pay_at_pickup_print_policy: store.payAtPickupPrintPolicy,
+        file_retention_policy: store.fileRetentionPolicy,
+        paid_orders_priority: store.paidOrdersPriority,
+        tax_rate_bps: store.taxRateBps,
+        device_confirm_phone: store.deviceConfirmPhone,
+        has_device_password: !!store.devicePasswordHash,
+        onboarding_completed_at: store.onboardingCompletedAt?.toISOString() ?? null,
+        customer_shop_path: `/${store.slug}`,
+        customer_shop_url: appUrl ? `${appUrl}/${store.slug}` : null,
+        created_at: store.createdAt.toISOString(),
+        updated_at: store.updatedAt.toISOString(),
+        opening_hours: store.openingHours.map((h) => ({
+          day_of_week: h.dayOfWeek,
+          open_time: h.openTime,
+          close_time: h.closeTime,
+          is_closed: h.isClosed,
+        })),
       },
       device: {
         id: device.id,
         name: device.name,
         status: device.status,
         last_connected_at: device.lastConnectedAt?.toISOString() ?? null,
+        app_version: device.appVersion,
+        os_version: device.osVersion,
+        created_at: device.createdAt.toISOString(),
       },
     };
   }

@@ -1,30 +1,43 @@
-import { Body, Controller, Inject, Post } from '@nestjs/common';
-import { PrismaClient } from '@omsp/database';
-import { PRISMA } from '../prisma/prisma.module';
-import { generateDeviceToken, hashDeviceToken } from '../websocket/shop.gateway';
+import { Body, Controller, Post } from '@nestjs/common';
+import { IsString, MinLength } from 'class-validator';
+import { LibraryService } from '../library/library.service';
+
+class PairStartDto {
+  @IsString()
+  @MinLength(1)
+  store_slug!: string;
+
+  @IsString()
+  @MinLength(6)
+  device_password!: string;
+
+  @IsString()
+  @MinLength(1)
+  device_name!: string;
+}
+
+class PairConfirmDto {
+  @IsString()
+  @MinLength(1)
+  challenge_id!: string;
+
+  @IsString()
+  @MinLength(4)
+  code!: string;
+}
 
 @Controller('devices')
 export class DevicesController {
-  constructor(@Inject(PRISMA) private readonly db: PrismaClient) {}
+  constructor(private readonly library: LibraryService) {}
 
-  @Post('register')
-  async register(@Body() body: { store_slug: string; name: string }) {
-    const store = await this.db.store.findUnique({ where: { slug: body.store_slug } });
-    if (!store) return { error: 'Store not found' };
+  /** Pair desktop app: password → OTP to library confirm phone → device token. */
+  @Post('pair/start')
+  pairStart(@Body() dto: PairStartDto) {
+    return this.library.startPairing(dto.store_slug, dto.device_password, dto.device_name);
+  }
 
-    const token = generateDeviceToken();
-    const device = await this.db.device.create({
-      data: {
-        storeId: store.id,
-        name: body.name,
-        tokenHash: hashDeviceToken(token),
-      },
-    });
-
-    return {
-      device_id: device.id,
-      device_token: token,
-      ws_url: `ws://localhost:${process.env.API_PORT ?? 4000}/ws/shop`,
-    };
+  @Post('pair/confirm')
+  pairConfirm(@Body() dto: PairConfirmDto) {
+    return this.library.confirmPairing(dto.challenge_id, dto.code);
   }
 }

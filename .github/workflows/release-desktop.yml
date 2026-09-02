@@ -1,0 +1,84 @@
+# Desktop release (Windows NSIS + Tauri updater artifacts)
+#
+# Triggers: push tag v* (e.g. v0.1.1) or workflow_dispatch
+#
+# Required GitHub Actions secrets (Settings → Secrets and variables → Actions):
+#   TAURI_SIGNING_PRIVATE_KEY          — full private key string (from ~/.tauri/omsp-desktop.key)
+#   TAURI_SIGNING_PRIVATE_KEY_PASSWORD — password; leave empty / omit if key has none
+#   GITHUB_TOKEN                       — provided automatically by Actions
+#
+# Cut a release (after bumping version in package.json, tauri.conf.json, Cargo.toml):
+#   git tag v0.1.1
+#   git push origin v0.1.1
+#
+# See apps/shop-desktop-app/UPDATES.md for full steps.
+
+name: Release desktop
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release-windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: apps/shop-desktop-app/src-tauri -> target
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build print-worker
+        run: |
+          dotnet build apps/print-worker/PrintWorker.csproj -c Release
+          if (-not (Test-Path "apps/print-worker/bin/Release/net8.0-windows/print-worker.exe")) {
+            throw "print-worker.exe missing after build"
+          }
+
+      - name: Build Tauri app & publish GitHub Release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          projectPath: apps/shop-desktop-app
+          tagName: ${{ github.ref_name }}
+          releaseName: "Shop Desktop ${{ github.ref_name }}"
+          releaseBody: |
+            Windows desktop release for Oman Smart Printing Platform (library app).
+
+            Install the NSIS setup, or let an existing install update via the in-app updater.
+          releaseDraft: false
+          prerelease: false
+          includeUpdaterJson: true
+          args: --bundles nsis

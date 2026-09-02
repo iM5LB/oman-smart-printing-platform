@@ -20,7 +20,7 @@
 **Cloud remains source of truth** for orders, payments, customers, prices, employees, reports.  
 **SQLite** holds operational cache only.
 
-The current WPF app in `apps/shop-desktop/` is a transitional prototype. New code lives under `apps/shop-desktop-tauri/` (UI+Tauri) and `apps/print-service/` (C# service).
+The current WPF app in `apps/shop-desktop/` is a transitional prototype. New code lives under `apps/shop-desktop-app/` (UI+Tauri) and `apps/print-worker/` (C# print sidecar).
 
 ---
 

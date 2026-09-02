@@ -1,7 +1,7 @@
 import { NavLink, useNavigate } from "react-router-dom";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useAuth } from "../lib/auth";
-import { shopApi } from "../lib/api";
+import { getCustomerShopUrl, formatCleanUrl, shopApi } from "../lib/api";
 import {
   checkForUpdate,
   downloadAndInstallUpdate,
@@ -10,6 +10,7 @@ import {
 } from "../lib/updates";
 import { Icons } from "./icons";
 import { NotificationBell } from "./NotificationBell";
+import { ShopUrlQrDialog } from "./ShopUrlQrDialog";
 import { useToast } from "./Toast";
 import { Button } from "./ui";
 
@@ -22,7 +23,7 @@ const nav = [
   { to: "/customers", label: "العملاء", icon: Icons.customers },
   { to: "/pricing", label: "الأسعار", icon: Icons.pricing },
   { to: "/reports", label: "التقارير", icon: Icons.reports },
-  { to: "/settings", label: "الإعدادات", icon: Icons.settings },
+  { to: "/settings", label: "المعلومات", icon: Icons.settings },
 ];
 
 function formatOrderLabel(raw: string) {
@@ -40,7 +41,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [updateProgress, setUpdateProgress] = useState<InstallProgress | null>(
     null,
   );
+  const [shopQrOpen, setShopQrOpen] = useState(false);
   const updatePrompted = useRef(false);
+  const shopUrl = getCustomerShopUrl(me?.store);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -157,12 +160,34 @@ export function AppShell({ children }: { children: ReactNode }) {
       <div className="relative flex min-h-0 min-w-0 flex-1">
         <aside className="z-10 flex w-[260px] shrink-0 flex-col border-e border-border-default bg-bg-surface">
           <div className="relative z-20 flex items-center gap-3 px-4 py-5">
-            <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-primary text-white shadow-[0_8px_24px_rgba(31,111,235,0.35)]">
-              {Icons.printer({ size: 20 })}
-            </div>
+            {me?.store.logo_url ? (
+              <img
+                src={me.store.logo_url}
+                alt=""
+                className="size-11 shrink-0 rounded-2xl border border-border-default object-cover shadow-[0_8px_24px_rgba(31,111,235,0.25)]"
+              />
+            ) : (
+              <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-primary text-section font-semibold text-white shadow-[0_8px_24px_rgba(31,111,235,0.35)]">
+                {(me?.store.name ?? "م").slice(0, 1)}
+              </div>
+            )}
             <div className="min-w-0 flex-1">
-              <p className="truncate text-title leading-tight">منصة الطباعة</p>
-              <p className="truncate text-meta text-text-muted">سلطنة عُمان</p>
+              <p className="truncate text-title leading-tight">
+                {me?.store.name ?? "منصة الطباعة"}
+              </p>
+              {shopUrl ? (
+                <button
+                  type="button"
+                  onClick={() => setShopQrOpen(true)}
+                  className="mt-0.5 block max-w-full truncate text-start text-meta text-info underline-offset-2 hover:underline"
+                  dir="ltr"
+                  title="عرض رمز QR للمسح"
+                >
+                  {formatCleanUrl(shopUrl)}
+                </button>
+              ) : (
+                <p className="truncate text-meta text-text-muted">سلطنة عُمان</p>
+              )}
             </div>
             <NotificationBell className="shrink-0" />
           </div>
@@ -251,6 +276,15 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         </main>
       </div>
+
+      {shopUrl ? (
+        <ShopUrlQrDialog
+          open={shopQrOpen}
+          onClose={() => setShopQrOpen(false)}
+          url={shopUrl}
+          storeName={me?.store.name}
+        />
+      ) : null}
 
       {updateVersion ? (
         <div

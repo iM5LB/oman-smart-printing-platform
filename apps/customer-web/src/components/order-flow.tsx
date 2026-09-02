@@ -335,7 +335,7 @@ export function OrderFlow({ store }: OrderFlowProps) {
                     dir="ltr"
                     value={customerPhone}
                     onChange={(e) => setCustomerPhone(e.target.value)}
-                    placeholder="+968 9XXXXXXX"
+                    placeholder="+968 9XXXXXXX أو رقم دولي"
                     required
                   />
                 </label>
@@ -413,7 +413,9 @@ export function OrderFlow({ store }: OrderFlowProps) {
           </div>
         )}
 
-        {step !== 'upload' && step !== 'options' && step !== 'checkout' && <StoreFooter store={store} />}
+        {step !== 'upload' && step !== 'options' && step !== 'checkout' && (
+          <StoreFooter store={store} />
+        )}
       </div>
     </div>
   );

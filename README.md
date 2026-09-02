@@ -9,25 +9,29 @@ Production-ready smart printing platform for Omani print shops, libraries, and c
 | Product | Technology | Description |
 |---------|-----------|-------------|
 | Customer Website | Next.js | Arabic RTL mobile-first ordering |
-| Shop Desktop App | .NET 8 / WPF | Windows printer integration |
+| Shop Desktop App | Tauri 2 + React | Windows shop operations + printing |
+| Print Worker | .NET 8 | Local Windows printer bridge |
 | API Server | NestJS | REST + WebSocket backend |
 
 ## Monorepo Structure
 
 ```
 apps/
-  customer-web/     Customer-facing Arabic website
-  shop-desktop/     Windows desktop application (.NET)
-  api/              Backend API server
+  customer-web/      Customer-facing Arabic website
+  shop-desktop-app/  Tauri shop desktop (React + Rust)
+  print-worker/      .NET print bridge for Windows
+  shop-desktop/      Legacy WPF prototype (transitional)
+  api/               Backend API server
 packages/
-  database/         Prisma schema + PostgreSQL
-  shared/           Business logic (money, phone, pricing)
-  types/            Shared TypeScript types
+  database/          Prisma schema + PostgreSQL
+  shared/            Business logic (money, phone, pricing)
+  types/             Shared TypeScript types
 services/
   document-processing/  PDF conversion (future)
 docs/
-  architecture/     System design documents
-  adr/              Architecture Decision Records
+  architecture/      System design documents
+  adr/               Architecture Decision Records
+  desktop/           Desktop app architecture & design
 ```
 
 ## Getting Started
@@ -87,6 +91,14 @@ npm run dev
 | Customer Web | http://localhost:3000 |
 | API | http://localhost:4000 |
 | API WebSocket | ws://localhost:4000/ws/shop |
+
+### Shop desktop (Windows)
+
+```bash
+npm run desktop:dev
+```
+
+Requires .NET 8 SDK for `print-worker`, plus the Tauri/Rust toolchain for the desktop shell.
 
 ## Phase 1 MVP
 

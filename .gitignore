@@ -23,8 +23,11 @@ build/
 !.env.example
 *.pem
 *.key
+*.key.pub
 credentials.json
 **/secrets/
+.tauri/
+**/.tauri/
 
 # IDE
 .idea/
@@ -60,6 +63,19 @@ apps/shop-desktop/**/*.user
 apps/shop-desktop/**/*.exe
 apps/shop-desktop/**/*.dll
 apps/shop-desktop/**/*.pdb
+
+# Print worker (.NET)
+apps/print-worker/**/bin/
+apps/print-worker/**/obj/
+apps/print-worker/**/*.user
+apps/print-worker/**/*.exe
+apps/print-worker/**/*.dll
+apps/print-worker/**/*.pdb
+
+# Accidental tsc emit into src/
+packages/database/src/**/*.js
+packages/database/src/**/*.d.ts
+packages/database/src/**/*.js.map
 
 # Logs
 *.log

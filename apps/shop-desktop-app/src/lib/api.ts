@@ -1,21 +1,68 @@
-const TOKEN_API_URL_KEY = "omsp.apiUrl";
+/** Production API — release builds always use this (no trailing slash). */
+export const PRODUCTION_API_BASE = "https://omsp-api.onrender.com";
 
-function defaultApiBase(): string {
-  return import.meta.env.VITE_API_URL?.replace(/\/$/, "") || "http://localhost:4000";
+const LEGACY_API_URL_KEY = "omsp.apiUrl";
+
+function normalizeApiBase(url: string): string {
+  return url.trim().replace(/\/+$/, "");
 }
 
-export function getApiBase(): string {
-  if (typeof localStorage !== "undefined") {
-    const stored = localStorage.getItem(TOKEN_API_URL_KEY)?.replace(/\/$/, "");
-    if (stored) return stored;
+/** Ignore any previously saved custom API URL from older app versions. */
+function clearLegacyStoredApiUrl() {
+  try {
+    if (typeof localStorage !== "undefined") {
+      localStorage.removeItem(LEGACY_API_URL_KEY);
+    }
+  } catch {
+    /* ignore */
   }
-  return defaultApiBase();
 }
 
-export function setApiBase(url: string) {
-  const cleaned = url.trim().replace(/\/$/, "");
-  if (cleaned) localStorage.setItem(TOKEN_API_URL_KEY, cleaned);
-  else localStorage.removeItem(TOKEN_API_URL_KEY);
+clearLegacyStoredApiUrl();
+
+/**
+ * API origin (no trailing slash).
+ * - Production/release: always Render.
+ * - DEV (`tauri:dev` / Vite): `VITE_API_URL` if set, else localhost:4000.
+ */
+export function getApiBase(): string {
+  if (import.meta.env.DEV) {
+    const fromEnv = import.meta.env.VITE_API_URL;
+    if (fromEnv) return normalizeApiBase(fromEnv);
+    return "http://localhost:4000";
+  }
+  return PRODUCTION_API_BASE;
+}
+
+/** Customer web origin (no trailing slash). */
+export function getWebBase(): string {
+  const fromEnv = import.meta.env.VITE_WEB_URL;
+  if (fromEnv) return normalizeApiBase(fromEnv);
+  if (import.meta.env.DEV) return "http://localhost:3000";
+  return "https://omsp.onrender.com";
+}
+
+/** Full public shop URL for customers (scan / share). */
+export function getCustomerShopUrl(store: {
+  slug?: string | null;
+  customer_shop_url?: string | null;
+  customer_shop_path?: string | null;
+} | null | undefined): string | null {
+  if (!store) return null;
+  if (store.customer_shop_url) return store.customer_shop_url;
+  if (store.slug) return `${getWebBase()}/${store.slug}`;
+  if (store.customer_shop_path?.startsWith("/")) {
+    return `${getWebBase()}${store.customer_shop_path}`;
+  }
+  return null;
+}
+
+/** Display form without scheme, e.g. `localhost:3000/m5lb`. */
+export function formatCleanUrl(url: string | null | undefined): string {
+  if (!url) return "";
+  return url
+    .replace(/^https?:\/\//i, "")
+    .replace(/\/+$/, "");
 }
 
 function apiUrl(): string {
@@ -27,15 +74,43 @@ export type ShopMe = {
     id: string;
     slug: string;
     name: string;
-    phone: string;
+    phone: string | null;
+    logo_url?: string | null;
+    governorate?: string | null;
+    wilayat?: string | null;
+    area?: string | null;
+    address?: string | null;
+    latitude?: number | null;
+    longitude?: number | null;
+    is_active?: boolean;
+    order_number_prefix?: string;
     auto_print_paid_orders: boolean;
     pay_at_pickup_print_policy: string;
+    file_retention_policy?: string;
+    paid_orders_priority?: string;
+    tax_rate_bps?: number;
+    device_confirm_phone?: string | null;
+    has_device_password?: boolean;
+    onboarding_completed_at?: string | null;
+    customer_shop_path?: string;
+    customer_shop_url?: string | null;
+    created_at?: string;
+    updated_at?: string;
+    opening_hours?: Array<{
+      day_of_week: number;
+      open_time: string;
+      close_time: string;
+      is_closed: boolean;
+    }>;
   };
   device: {
     id: string;
     name: string;
     status: string;
     last_connected_at: string | null;
+    app_version?: string | null;
+    os_version?: string | null;
+    created_at?: string;
   };
 };
 
@@ -118,7 +193,7 @@ export type ShopPricing = {
 function mapFetchError(err: unknown): Error {
   if (err instanceof TypeError) {
     return new Error(
-      "تعذر الاتصال بالخادم. شغّل الـ API أولاً (npm run start:api) على المنفذ المحدد.",
+      "تعذر الاتصال بالخادم. تحقق من الإنترنت أو شغّل الـ API محلياً في وضع التطوير.",
     );
   }
   if (err instanceof Error) return err;
@@ -159,6 +234,59 @@ async function request<T>(
 export const shopApi = {
   get apiUrl() {
     return getApiBase();
+  },
+  /** Public pairing — no device token yet. */
+  pairStart: async (body: {
+    store_slug: string;
+    device_password: string;
+    device_name: string;
+  }) => {
+    let res: Response;
+    try {
+      res = await fetch(`${apiUrl()}/devices/pair/start`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    } catch (err) {
+      throw mapFetchError(err);
+    }
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ message: `HTTP ${res.status}` }));
+      const msg = Array.isArray(err.message) ? err.message[0] : err.message;
+      throw new Error(msg ?? `HTTP ${res.status}`);
+    }
+    return (await res.json()) as {
+      challenge_id: string;
+      phone_hint: string;
+      expires_in_seconds: number;
+      message: string;
+      dev_code?: string;
+    };
+  },
+  pairConfirm: async (body: { challenge_id: string; code: string }) => {
+    let res: Response;
+    try {
+      res = await fetch(`${apiUrl()}/devices/pair/confirm`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    } catch (err) {
+      throw mapFetchError(err);
+    }
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ message: `HTTP ${res.status}` }));
+      const msg = Array.isArray(err.message) ? err.message[0] : err.message;
+      throw new Error(msg ?? `HTTP ${res.status}`);
+    }
+    return (await res.json()) as {
+      device_id: string;
+      device_token: string;
+      store_slug: string;
+      store_name: string;
+      ws_url: string;
+    };
   },
   me: (token: string) => request<ShopMe>("/shop/me", token),
   stats: (token: string) => request<ShopStats>("/shop/stats", token),

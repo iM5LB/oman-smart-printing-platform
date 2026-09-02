@@ -62,22 +62,47 @@
         </Border>
 
         <Border x:Name="SetupOverlay" Background="#CC000000" Visibility="Collapsed" Panel.ZIndex="100">
-            <Border Style="{StaticResource Card}" Width="460" MaxWidth="520" VerticalAlignment="Center" HorizontalAlignment="Center" Margin="16">
+            <Border Style="{StaticResource Card}" Width="480" MaxWidth="540" VerticalAlignment="Center" HorizontalAlignment="Center" Margin="16">
                 <StackPanel>
-                    <TextBlock Text="إعداد التطبيق" Style="{StaticResource PageTitle}" Margin="0,0,0,8"/>
-                    <TextBlock Text="اربط جهاز المكتبة بالمنصة لاستقبال الطلبات والطباعة التلقائية." TextWrapping="Wrap"
-                               Foreground="{StaticResource MutedBrush}" Margin="0,0,0,20" FontSize="14"/>
-                    <TextBlock Text="رابط الخادم (API)" Style="{StaticResource LabelText}"/>
-                    <TextBox x:Name="SetupApiUrl" Style="{StaticResource InputBox}" Text="http://localhost:4000" Margin="0,0,0,12"/>
+                    <TextBlock Text="ربط جهاز المكتبة" Style="{StaticResource PageTitle}" Margin="0,0,0,8"/>
+                    <TextBlock Text="هذا التطبيق أداة تشغيل فقط. إعداد المكتبة والموقع ورقم التأكيد من لوحة الويب. هنا تربط الجهاز بكلمة المرور ورمز SMS أو برمز صادر من اللوحة."
+                               TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,16" FontSize="13"/>
+
+                    <TextBlock Text="رابط الخادم" Style="{StaticResource LabelText}"/>
+                    <TextBox x:Name="SetupApiUrl" Style="{StaticResource InputBox}" Text="http://localhost:4000" Margin="0,0,0,10"/>
                     <TextBlock Text="معرّف المكتبة" Style="{StaticResource LabelText}"/>
-                    <TextBox x:Name="SetupStoreSlug" Style="{StaticResource InputBox}" Text="al-noor" Margin="0,0,0,12"/>
+                    <TextBox x:Name="SetupStoreSlug" Style="{StaticResource InputBox}" Text="al-noor" Margin="0,0,0,10"/>
                     <TextBlock Text="اسم الجهاز" Style="{StaticResource LabelText}"/>
-                    <TextBox x:Name="SetupDeviceName" Style="{StaticResource InputBox}" Text="جهاز الكاونتر" Margin="0,0,0,12"/>
-                    <CheckBox x:Name="SetupUseExistingToken" Content="لدي رمز جهاز موجود" IsChecked="True" Foreground="{StaticResource TextBrush}" Margin="0,0,0,8"/>
-                    <TextBox x:Name="SetupDeviceToken" Style="{StaticResource InputBox}"
-                             Text="dev-al-noor-device-token-change-in-production" Margin="0,0,0,14"/>
-                    <TextBlock x:Name="SetupError" Foreground="{StaticResource ErrorBrush}" TextWrapping="Wrap" Visibility="Collapsed" Margin="0,0,0,10"/>
-                    <Button Content="حفظ والبدء" Style="{StaticResource BtnPrimary}" Click="SetupSave_Click"/>
+                    <TextBox x:Name="SetupDeviceName" Style="{StaticResource InputBox}" Text="جهاز الكاونتر" Margin="0,0,0,10"/>
+
+                    <CheckBox x:Name="SetupUseExistingToken" Content="لدي رمز جهاز جاهز من لوحة المكتبة"
+                              IsChecked="False" Foreground="{StaticResource TextBrush}" Margin="0,0,0,8"
+                              Checked="SetupMode_Changed" Unchecked="SetupMode_Changed"/>
+
+                    <StackPanel x:Name="SetupTokenPanel" Visibility="Collapsed">
+                        <TextBlock Text="رمز الجهاز" Style="{StaticResource LabelText}"/>
+                        <TextBox x:Name="SetupDeviceToken" Style="{StaticResource InputBox}" Margin="0,0,0,12"
+                                 Text="dev-al-noor-device-token-change-in-production"/>
+                        <Button Content="ربط والبدء" Style="{StaticResource BtnPrimary}" Click="SetupSave_Click"/>
+                    </StackPanel>
+
+                    <StackPanel x:Name="SetupPairPanel">
+                        <TextBlock Text="كلمة مرور الجهاز (من لوحة المكتبة)" Style="{StaticResource LabelText}"/>
+                        <PasswordBox x:Name="SetupDevicePassword" Margin="0,0,0,10" Height="36" Padding="10,6"
+                                     Background="{StaticResource BgInputBrush}" Foreground="{StaticResource TextBrush}"
+                                     BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                     Password="device123"/>
+                        <StackPanel x:Name="SetupOtpPanel" Visibility="Collapsed" Margin="0,0,0,10">
+                            <TextBlock x:Name="SetupOtpHint" TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" FontSize="12" Margin="0,0,0,6"/>
+                            <TextBlock Text="رمز التأكيد" Style="{StaticResource LabelText}"/>
+                            <TextBox x:Name="SetupOtpCode" Style="{StaticResource InputBox}" Margin="0,0,0,8"/>
+                            <Button Content="تأكيد الربط" Style="{StaticResource BtnPrimary}" Click="SetupConfirmPair_Click"/>
+                        </StackPanel>
+                        <Button x:Name="SetupStartPairBtn" Content="إرسال رمز التأكيد" Style="{StaticResource BtnPrimary}"
+                                Click="SetupStartPair_Click" Margin="0,0,0,4"/>
+                    </StackPanel>
+
+                    <TextBlock x:Name="SetupError" Foreground="{StaticResource ErrorBrush}" TextWrapping="Wrap" Visibility="Collapsed" Margin="0,10,0,0"/>
                 </StackPanel>
             </Border>
         </Border>
@@ -357,7 +382,7 @@
                                             <TextBlock Text="جاهزة للاستلام" Style="{StaticResource MetricLabel}" Margin="0"/>
                                             <TextBlock x:Name="StatReady" Text="0" FontSize="26" FontWeight="Bold"
                                                        Foreground="{StaticResource TextBrush}" Margin="0,2,0,0"/>
-                                            <TextBlock Text="جاهزة في المتجر" FontSize="12"
+                                            <TextBlock Text="جاهزة في المكتبة" FontSize="12"
                                                        Foreground="{StaticResource MutedBrush}" Margin="0,6,0,0"/>
                                         </StackPanel>
                                     </Grid>
@@ -1066,12 +1091,14 @@
                             </Border>
                             <Border Style="{StaticResource Card}" Margin="0,0,0,12" MaxWidth="560">
                                 <StackPanel>
-                                    <TextBlock Text="تسجيل جهاز جديد" Style="{StaticResource SectionTitle}"/>
+                                    <TextBlock Text="ربط بجهاز من لوحة المكتبة" Style="{StaticResource SectionTitle}"/>
+                                    <TextBlock Text="بيانات المكتبة والموقع ورقم التأكيد تُدار من لوحة المكتبة على الويب. هنا فقط تربط هذا الجهاز برمز صادر من هناك."
+                                               TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" FontSize="12" Margin="0,0,0,12"/>
                                     <TextBlock Text="معرّف المكتبة" Style="{StaticResource LabelText}"/>
                                     <TextBox x:Name="RegisterStoreSlug" Style="{StaticResource InputBox}" Margin="0,0,0,12"/>
                                     <TextBlock Text="اسم الجهاز" Style="{StaticResource LabelText}"/>
                                     <TextBox x:Name="RegisterDeviceName" Style="{StaticResource InputBox}" Margin="0,0,0,12"/>
-                                    <Button Content="تسجيل والحصول على رمز" Style="{StaticResource BtnOutline}" Click="RegisterDevice_Click" HorizontalAlignment="Right"/>
+                                    <Button Content="طلب رمز الربط" Style="{StaticResource BtnOutline}" Click="RegisterDevice_Click" HorizontalAlignment="Right"/>
                                     <TextBlock x:Name="RegisterResult" TextWrapping="Wrap" Margin="0,12,0,0" Visibility="Collapsed" FontSize="12"/>
                                 </StackPanel>
                             </Border>

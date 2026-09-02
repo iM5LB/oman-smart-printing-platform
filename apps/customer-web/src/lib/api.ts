@@ -1,7 +1,25 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
+/** Production API — used when env is unset outside local development. */
+export const PRODUCTION_API_BASE = 'https://omsp-api.onrender.com';
+
+function normalizeApiBase(url: string): string {
+  return url.trim().replace(/\/+$/, '');
+}
+
+/**
+ * Public API origin (no trailing slash).
+ * - `NEXT_PUBLIC_API_URL` if set (local override)
+ * - else `http://localhost:4000` in development
+ * - else Render production URL
+ */
+export function getApiBase(): string {
+  const fromEnv = process.env.NEXT_PUBLIC_API_URL;
+  if (fromEnv) return normalizeApiBase(fromEnv);
+  if (process.env.NODE_ENV === 'development') return 'http://localhost:4000';
+  return PRODUCTION_API_BASE;
+}
 
 export async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_URL}/api/v1${path}`, options);
+  const res = await fetch(`${getApiBase()}/api/v1${path}`, options);
   if (!res.ok) {
     const err = await res.json().catch(() => ({ message: 'خطأ في الاتصال' }));
     const msg = Array.isArray(err.message) ? err.message[0] : err.message;
@@ -21,7 +39,7 @@ export interface UploadedFile {
 export async function uploadFile(storeSlug: string, file: File): Promise<UploadedFile> {
   const form = new FormData();
   form.append('file', file);
-  const res = await fetch(`${API_URL}/api/v1/stores/${storeSlug}/uploads`, {
+  const res = await fetch(`${getApiBase()}/api/v1/stores/${storeSlug}/uploads`, {
     method: 'POST',
     body: form,
   });

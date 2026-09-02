@@ -75,7 +75,7 @@ stateDiagram-v2
 ### Pay at Pickup
 
 1. Customer completes file upload + print options + checkout form
-2. API validates phone (+968), pricing, file readiness
+2. API validates phone (E.164), pricing, file readiness
 3. Order created with status `submitted`
 4. Payment status: `unpaid`
 5. Apply store policy:

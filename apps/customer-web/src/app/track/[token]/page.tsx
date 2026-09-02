@@ -8,6 +8,7 @@ import {
   PRINT_SIDES_AR,
 } from '@omsp/types';
 import { StatusTimeline } from '@/components/status-timeline';
+import { getApiBase } from '@/lib/api';
 
 type TrackItem = {
   filename: string;
@@ -31,7 +32,7 @@ type TrackOrder = {
 };
 
 async function getOrder(token: string): Promise<TrackOrder | null> {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
+  const apiUrl = getApiBase();
   try {
     const res = await fetch(`${apiUrl}/api/v1/orders/track/${token}`, { cache: 'no-store' });
     if (!res.ok) return null;
@@ -52,7 +53,7 @@ export default async function TrackPage({
 
   const statusLabel = ORDER_STATUS_AR[order.status] ?? order.status;
   const paymentLabel = PAYMENT_STATUS_AR[order.payment_status] ?? order.payment_status;
-  const homeHref = order.store_slug ? `/shop/${order.store_slug}` : '/';
+  const homeHref = order.store_slug ? `/${order.store_slug}` : '/';
 
   return (
     <div className="page-shell">

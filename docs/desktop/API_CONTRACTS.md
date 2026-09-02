@@ -70,7 +70,7 @@ type ShopOrderDto = {
   payment_status: string;
   payment_method: string;
   customer_name: string | null;
-  customer_phone: string;        // E.164 +968…
+  customer_phone: string;        // E.164 (+CC…)
   total_baisa: number;
   total_display: string;         // "1.700 ر.ع"
   created_at: string;

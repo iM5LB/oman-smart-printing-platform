@@ -1,27 +1,72 @@
 import { useState, type FormEvent } from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "../lib/auth";
-import { getApiBase, setApiBase, shopApi } from "../lib/api";
+import { shopApi } from "../lib/api";
 import { Button, Input, Panel } from "../components/ui";
+import { Icons } from "../components/icons";
+
+type Step = "credentials" | "otp";
 
 export function LoginPage() {
   const { token, login, loading, error } = useAuth();
-  const [deviceToken, setDeviceToken] = useState(
-    "dev-al-noor-device-token-change-in-production",
-  );
-  const [apiBase, setApiBaseInput] = useState(() => getApiBase());
+  const [step, setStep] = useState<Step>("credentials");
+  const [storeSlug, setStoreSlug] = useState("");
+  const [devicePassword, setDevicePassword] = useState("");
+  const [deviceName, setDeviceName] = useState("جهاز الكاونتر");
+  const [otp, setOtp] = useState("");
+  const [challengeId, setChallengeId] = useState<string | null>(null);
+  const [phoneHint, setPhoneHint] = useState<string | null>(null);
+  const [devCode, setDevCode] = useState<string | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
   if (token) return <Navigate to="/" replace />;
 
-  const onSubmit = async (e: FormEvent) => {
+  const onRequestOtp = async (e: FormEvent) => {
     e.preventDefault();
     setLocalError(null);
-    setApiBase(apiBase);
+    setBusy(true);
     try {
-      await login(deviceToken);
+      const slug = storeSlug.trim().toLowerCase();
+      if (!slug) throw new Error("أدخل معرّف المكتبة");
+      if (devicePassword.trim().length < 6) {
+        throw new Error("كلمة مرور الجهاز يجب أن تكون 6 أحرف على الأقل");
+      }
+      const res = await shopApi.pairStart({
+        store_slug: slug,
+        device_password: devicePassword,
+        device_name: deviceName.trim() || "جهاز الكاونتر",
+      });
+      setChallengeId(res.challenge_id);
+      setPhoneHint(res.phone_hint);
+      setDevCode(res.dev_code ?? null);
+      if (res.dev_code) setOtp(res.dev_code);
+      setStep("otp");
+    } catch (err) {
+      setLocalError(err instanceof Error ? err.message : "فشل إرسال الرمز");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onConfirmOtp = async (e: FormEvent) => {
+    e.preventDefault();
+    setLocalError(null);
+    if (!challengeId) {
+      setLocalError("أعد طلب الرمز أولاً");
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await shopApi.pairConfirm({
+        challenge_id: challengeId,
+        code: otp.trim(),
+      });
+      await login(res.device_token);
     } catch (err) {
       setLocalError(err instanceof Error ? err.message : "فشل الدخول");
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -35,44 +80,107 @@ export function LoginPage() {
         }}
       />
       <Panel className="relative w-full max-w-md animate-fade-up p-6 shadow-none">
-        <p className="text-meta text-text-muted">تطبيق المكتبة</p>
-        <h1 className="mt-1 text-display font-semibold tracking-tight">
-          عمان للطباعة الذكية
-        </h1>
-        <p className="mt-2 text-body text-text-secondary">
-          سجّل الدخول برمز الجهاز المرتبط بالمكتبة للاتصال بالطابعات والطلبات.
+        <div className="flex items-center gap-3">
+          <div className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-primary text-white shadow-[0_8px_24px_rgba(31,111,235,0.35)]">
+            {Icons.printer({ size: 22 })}
+          </div>
+          <div className="min-w-0">
+            <h1 className="truncate text-title leading-tight">منصة الطباعة</h1>
+            <p className="truncate text-meta text-text-muted">سلطنة عُمان</p>
+          </div>
+        </div>
+        <p className="mt-4 text-body text-text-secondary">
+          {step === "credentials"
+            ? "استخدم معرّف المكتبة وكلمة مرور الجهاز كما ضبطتها في الموقع. سيُرسل رمز تأكيد إلى رقم هاتف العلامة التجارية."
+            : `أدخل الرمز المرسل إلى ${phoneHint ?? "رقم المكتبة"} لإكمال الربط.`}
         </p>
 
-        <form className="mt-6 space-y-4" onSubmit={onSubmit}>
-          <label className="block space-y-1.5">
-            <span className="text-meta text-text-muted">رمز الجهاز</span>
-            <Input
-              dir="ltr"
-              value={deviceToken}
-              onChange={(e) => setDeviceToken(e.target.value)}
-              placeholder="device token"
-              autoFocus
-            />
-          </label>
-          <label className="block space-y-1.5">
-            <span className="text-meta text-text-muted">عنوان الـ API</span>
-            <Input
-              dir="ltr"
-              value={apiBase}
-              onChange={(e) => setApiBaseInput(e.target.value)}
-              placeholder="http://localhost:4000"
-            />
-          </label>
-          <p className="text-meta text-text-muted" dir="ltr">
-            Active: {shopApi.apiUrl}
-          </p>
-          {(localError || error) && (
-            <p className="text-meta text-danger">{localError || error}</p>
-          )}
-          <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "جاري الاتصال..." : "دخول"}
-          </Button>
-        </form>
+        {step === "credentials" ? (
+          <form className="mt-6 space-y-4" onSubmit={onRequestOtp}>
+            <label className="block space-y-1.5">
+              <span className="text-meta text-text-muted">معرّف المكتبة (slug)</span>
+              <Input
+                dir="ltr"
+                value={storeSlug}
+                onChange={(e) => setStoreSlug(e.target.value)}
+                placeholder="al-noor"
+                autoFocus
+                autoComplete="organization"
+                required
+              />
+            </label>
+            <label className="block space-y-1.5">
+              <span className="text-meta text-text-muted">كلمة مرور الجهاز</span>
+              <Input
+                dir="ltr"
+                type="password"
+                value={devicePassword}
+                onChange={(e) => setDevicePassword(e.target.value)}
+                placeholder="نفس كلمة المرور من إعداد الموقع"
+                autoComplete="current-password"
+                required
+                minLength={6}
+              />
+            </label>
+            <label className="block space-y-1.5">
+              <span className="text-meta text-text-muted">اسم هذا الجهاز</span>
+              <Input
+                value={deviceName}
+                onChange={(e) => setDeviceName(e.target.value)}
+                placeholder="جهاز الكاونتر"
+              />
+            </label>
+            {(localError || error) && (
+              <p className="text-meta text-danger">{localError || error}</p>
+            )}
+            <Button type="submit" className="w-full" disabled={busy || loading}>
+              {busy ? "جاري الإرسال..." : "إرسال رمز التأكيد"}
+            </Button>
+          </form>
+        ) : (
+          <form className="mt-6 space-y-4" onSubmit={onConfirmOtp}>
+            <label className="block space-y-1.5">
+              <span className="text-meta text-text-muted">رمز التأكيد (OTP)</span>
+              <Input
+                dir="ltr"
+                value={otp}
+                onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                placeholder="000000"
+                inputMode="numeric"
+                autoFocus
+                required
+                minLength={4}
+                maxLength={6}
+              />
+            </label>
+            {devCode ? (
+              <p className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-meta text-warning">
+                وضع تجريبي — الرمز: <span dir="ltr">{devCode}</span>
+              </p>
+            ) : null}
+            {(localError || error) && (
+              <p className="text-meta text-danger">{localError || error}</p>
+            )}
+            <Button type="submit" className="w-full" disabled={busy || loading}>
+              {busy || loading ? "جاري الدخول..." : "تأكيد ودخول"}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-full"
+              disabled={busy || loading}
+              onClick={() => {
+                setStep("credentials");
+                setChallengeId(null);
+                setOtp("");
+                setDevCode(null);
+                setLocalError(null);
+              }}
+            >
+              رجوع
+            </Button>
+          </form>
+        )}
       </Panel>
     </div>
   );

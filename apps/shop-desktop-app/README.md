@@ -32,12 +32,12 @@ npm run worker:build
 npm run tauri:dev
 ```
 
-Optional env:
+Optional env (DEV only):
 
-- `VITE_API_URL` — default `http://localhost:4000`
+- `VITE_API_URL` — local API override while running `tauri:dev` (default `http://localhost:4000`). Production/release builds always use `https://omsp-api.onrender.com`.
 - `PRINT_WORKER_PATH` — absolute path to `print-worker.exe` if auto-discovery fails
 
-Login uses device token (seed): `dev-al-noor-device-token-change-in-production`
+Login: enter the **device token** only (no API URL). Seed token: `dev-al-noor-device-token-change-in-production`
 
 ## Layout
 
@@ -54,3 +54,7 @@ UI → Tauri `invoke(list_printers | print_test)` → spawns `print-worker.exe` 
 { "cmd": "printers.list" }
 { "cmd": "print.test", "printerId": "..." }
 ```
+
+## Auto-updates
+
+See [UPDATES.md](./UPDATES.md) for GitHub Releases + Tauri updater setup (secrets, tagging `v*`, verification).

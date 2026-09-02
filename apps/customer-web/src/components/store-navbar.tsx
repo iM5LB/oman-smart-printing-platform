@@ -73,9 +73,18 @@ export function StoreNavbar({ store }: { store: StorePublicInfo }) {
     <>
       <nav className="store-navbar relative z-50 shrink-0">
         <div className="store-navbar-brand">
-          <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary text-white">
-            <BookOpen className="size-5" />
-          </div>
+          {store.logo_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={store.logo_url}
+              alt=""
+              className="size-9 shrink-0 rounded-xl border border-border object-cover"
+            />
+          ) : (
+            <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary text-white">
+              <BookOpen className="size-5" />
+            </div>
+          )}
           <h1 className="truncate text-sm font-bold text-text sm:text-base">{store.name}</h1>
         </div>
 

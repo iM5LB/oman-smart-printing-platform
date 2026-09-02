@@ -250,16 +250,55 @@ public class ShopApiClient
         catch { return new List<ShopPrinter>(); }
     }
 
-    public async Task<(string? DeviceId, string? Token, string? Error)> RegisterDeviceAsync(string storeSlug, string name)
+    public async Task<(string? ChallengeId, string? PhoneHint, string? Message, string? DevCode, string? Error)> StartDevicePairAsync(
+        string storeSlug, string devicePassword, string deviceName)
     {
         try
         {
-            var body = new { store_slug = storeSlug, name };
-            var res = await _http.PostAsJsonAsync($"{_apiUrl}/api/v1/devices/register", body);
-            if (!res.IsSuccessStatusCode) return (null, null, "فشل تسجيل الجهاز");
+            var body = new { store_slug = storeSlug, device_password = devicePassword, device_name = deviceName };
+            var res = await _http.PostAsJsonAsync($"{_apiUrl}/api/v1/devices/pair/start", body);
             var data = await res.Content.ReadFromJsonAsync<JsonElement>();
-            return (data.GetProperty("device_id").GetString(), data.GetProperty("device_token").GetString(), null);
+            if (!res.IsSuccessStatusCode)
+            {
+                var msg = data.TryGetProperty("message", out var m)
+                    ? (m.ValueKind == JsonValueKind.Array ? m[0].GetString() : m.GetString())
+                    : "فشل إرسال رمز التأكيد";
+                return (null, null, null, null, msg);
+            }
+            return (
+                data.GetProperty("challenge_id").GetString(),
+                data.TryGetProperty("phone_hint", out var ph) ? ph.GetString() : null,
+                data.TryGetProperty("message", out var msgEl) ? msgEl.GetString() : null,
+                data.TryGetProperty("dev_code", out var dc) ? dc.GetString() : null,
+                null
+            );
         }
-        catch (Exception ex) { return (null, null, ex.Message); }
+        catch (Exception ex) { return (null, null, null, null, ex.Message); }
+    }
+
+    public async Task<(string? Token, string? Error)> ConfirmDevicePairAsync(string challengeId, string code)
+    {
+        try
+        {
+            var body = new { challenge_id = challengeId, code };
+            var res = await _http.PostAsJsonAsync($"{_apiUrl}/api/v1/devices/pair/confirm", body);
+            var data = await res.Content.ReadFromJsonAsync<JsonElement>();
+            if (!res.IsSuccessStatusCode)
+            {
+                var msg = data.TryGetProperty("message", out var m)
+                    ? (m.ValueKind == JsonValueKind.Array ? m[0].GetString() : m.GetString())
+                    : "فشل تأكيد الربط";
+                return (null, msg);
+            }
+            return (data.GetProperty("device_token").GetString(), null);
+        }
+        catch (Exception ex) { return (null, ex.Message); }
+    }
+
+    [Obsolete("Use StartDevicePairAsync / ConfirmDevicePairAsync or a token from library web")]
+    public Task<(string? DeviceId, string? Token, string? Error)> RegisterDeviceAsync(string storeSlug, string name)
+    {
+        return Task.FromResult<(string?, string?, string?)>(
+            (null, null, "التسجيل المفتوح أُلغي — اربط بكلمة المرور ورمز التأكيد أو من لوحة المكتبة"));
     }
 }
