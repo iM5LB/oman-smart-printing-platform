@@ -24,7 +24,9 @@
     "build:web": "turbo run build --filter=@omsp/customer-web",
     "start:api": "npm run start --workspace=@omsp/api",
     "start:web": "npm run start --workspace=@omsp/customer-web",
-    "db:push:prod": "npm run db:push:prod --workspace=@omsp/database"
+    "db:push:prod": "npm run db:push:prod --workspace=@omsp/database",
+    "desktop:dev": "npm run dev --workspace=@omsp/shop-desktop-ui",
+    "desktop:build": "npm run build --workspace=@omsp/shop-desktop-ui"
   },
   "devDependencies": {
     "turbo": "^2.5.0",

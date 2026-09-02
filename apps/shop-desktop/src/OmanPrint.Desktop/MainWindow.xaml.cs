@@ -724,9 +724,23 @@ public partial class MainWindow : Window
     private void ShowToast(string message)
     {
         ToastText.Text = message;
+        var parts = message.Split(" — ", 2, StringSplitOptions.None);
+        ToastTitle.Text = parts.Length > 0 ? parts[0] : message;
+        ToastSubtitle.Text = parts.Length > 1 ? parts[1] : "تم استلام طلب جديد من العميل";
         ToastBanner.Visibility = Visibility.Visible;
         _toastTimer.Stop();
         _toastTimer.Start();
+    }
+
+    private void ToastClose_Click(object sender, RoutedEventArgs e)
+    {
+        ToastBanner.Visibility = Visibility.Collapsed;
+        _toastTimer.Stop();
+    }
+
+    private void ViewPrinters_Click(object sender, RoutedEventArgs e)
+    {
+        NavPrinters.IsChecked = true;
     }
 
     private async Task HandlePrintDispatch(JsonElement payload)
@@ -735,6 +749,10 @@ public partial class MainWindow : Window
         if (job == null) { AppendLog("تعذر قراءة مهمة الطباعة"); return; }
 
         QueueCurrentJob.Text = $"طباعة: {job.PrintJobId[..Math.Min(8, job.PrintJobId.Length)]}…";
+        QueueCurrentMeta.Text = "جاري الإرسال إلى الطابعة";
+        QueueFileExt.Text = "PDF";
+        QueueFileBadge.Background = new SolidColorBrush(Color.FromRgb(0xDC, 0x26, 0x26));
+        QueuePrintingBadge.Visibility = Visibility.Visible;
         SetQueueProgress(35);
         SetQueuePageProgress(35);
 
@@ -809,17 +827,25 @@ public partial class MainWindow : Window
             if (printing != null)
             {
                 _queueCurrentOrderId = printing.Id;
-                QueueCurrentJob.Text = $"{printing.OrderNumberShort} — {printing.ServiceLabel}";
+                QueueCurrentJob.Text = printing.Filename;
+                QueueCurrentMeta.Text = $"{printing.CustomerName}  •  {printing.OrderNumberShort}";
+                QueueFileExt.Text = printing.ExtLabel;
+                QueueFileBadge.Background = printing.ExtBrush;
+                QueuePrintingBadge.Visibility = Visibility.Visible;
                 QueuePageCurrentJob.Text = $"{printing.OrderNumberShort} — {printing.ServiceLabel}";
                 QueuePageCustomer.Text = printing.CustomerName;
-                SetQueueProgress(55);
-                SetQueuePageProgress(55);
+                SetQueueProgress(40);
+                SetQueuePageProgress(40);
                 QueueOpenCurrentBtn.Visibility = Visibility.Visible;
             }
             else
             {
                 _queueCurrentOrderId = null;
                 QueueCurrentJob.Text = "لا توجد مهمة نشطة";
+                QueueCurrentMeta.Text = "";
+                QueueFileExt.Text = "PDF";
+                QueueFileBadge.Background = new SolidColorBrush(Color.FromRgb(0xDC, 0x26, 0x26));
+                QueuePrintingBadge.Visibility = Visibility.Collapsed;
                 QueuePageCurrentJob.Text = "لا توجد مهمة نشطة";
                 QueuePageCustomer.Text = "";
                 SetQueueProgress(0);
@@ -833,7 +859,9 @@ public partial class MainWindow : Window
             QueueFailedList.ItemsSource = failed;
             NoQueueFailedText.Visibility = failed.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
 
-            QueueUpcomingList.ItemsSource = waiting.Select(o => $"{o.OrderNumberShort} — {o.CustomerName}").ToList();
+            var upcoming = waiting.Select(o => new QueueJobViewModel(o)).ToList();
+            QueueUpcomingList.ItemsSource = upcoming;
+            NoUpcomingQueue.Visibility = upcoming.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
 
             if (_selectedOrder != null)
             {
@@ -938,7 +966,7 @@ public partial class MainWindow : Window
         _selectedOrder = order;
         DetailEmptyHint.Visibility = Visibility.Collapsed;
         DetailContent.Visibility = Visibility.Visible;
-        DetailOrderNumber.Text = FormatOrderNumber(order.OrderNumber);
+        DetailOrderNumber.Text = FormatOrderNumberShort(order.OrderNumber);
 
         var customer = string.IsNullOrWhiteSpace(order.CustomerName) ? "عميل" : order.CustomerName!;
         DetailCustomerName.Text = customer;
@@ -960,16 +988,19 @@ public partial class MainWindow : Window
         if (item != null)
         {
             DetailFilename.Text = FormatFilename(item.Filename);
-            DetailPages.Text = item.PageCount.ToString();
+            DetailPages.Text = $"{item.PageCount} صفحة";
             DetailCopies.Text = item.Copies.ToString();
             DetailColor.Text = FormatColorMode(item.ColorMode);
-            DetailPaper.Text = FormatPaperSize(item.PaperSize);
-            DetailDuplex.Text = FormatSides(item.Sides);
+            var paper = (item.PaperSize ?? "").Trim().ToUpperInvariant();
+            DetailPaper.Text = string.IsNullOrEmpty(paper) ? "—" : paper;
+            DetailDuplex.Text = FormatSidesYesNo(item.Sides);
+            DetailExtraService.Text = "—";
         }
         else
         {
             DetailFilename.Text = order.ItemCount > 1 ? $"{order.ItemCount} ملفات" : "ملف واحد";
             DetailPages.Text = DetailCopies.Text = DetailColor.Text = DetailPaper.Text = DetailDuplex.Text = "—";
+            DetailExtraService.Text = "—";
         }
 
         DetailTotal.Text = FormatMoney(order.TotalDisplay);
@@ -1168,10 +1199,16 @@ public partial class MainWindow : Window
 
     private static string FormatColorMode(string? mode) => mode switch
     {
-        "color" => "ألوان",
+        "color" => "ملون",
         "grayscale" => "تدرج رمادي",
         "bw" or "black_white" or "mono" => "أبيض وأسود",
         _ => "أبيض وأسود",
+    };
+
+    private static string FormatSidesYesNo(string? sides) => sides switch
+    {
+        "duplex_long" or "duplex_short" or "duplex" or "double" => "نعم",
+        _ => "لا",
     };
 
     private static string FormatPaperSize(string? size)
@@ -1347,10 +1384,12 @@ public partial class MainWindow : Window
             }
 
             PrintersList.ItemsSource = items;
-            DashboardPrintersList.ItemsSource = items.Take(5).ToList();
+            var dashPrinters = items.Take(5).ToList();
+            DashboardPrintersList.ItemsSource = dashPrinters;
             var has = items.Count > 0;
             NoPrintersPanel.Visibility = has ? Visibility.Collapsed : Visibility.Visible;
             PrintersList.Visibility = has ? Visibility.Visible : Visibility.Collapsed;
+            NoDashboardPrinters.Visibility = dashPrinters.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         }
         catch (Exception ex)
         {
@@ -1457,9 +1496,14 @@ public partial class MainWindow : Window
         public string CustomerLine { get; }
         public string Status { get; }
         public string StatusAr { get; }
+        public string StatusIcon { get; }
         public string TotalDisplay { get; }
         public string ServiceLabel { get; }
         public string ServiceTypeLabel { get; }
+        public string Filename { get; }
+        public string ExtLabel { get; }
+        public Brush ExtBrush { get; }
+        public int PageCount { get; }
         public string TimeLabel { get; }
         public string PaymentLabel { get; }
         public Brush StatusBg { get; }
@@ -1483,22 +1527,77 @@ public partial class MainWindow : Window
                 "حالة غير معروفة");
             TotalDisplay = FormatMoney(o.TotalDisplay);
             ServiceLabel = FormatServiceLabel(o);
-            ServiceTypeLabel = "طباعة مستندات";
+            ServiceTypeLabel = ResolveServiceType(o);
+            var item = o.Items.FirstOrDefault();
+            Filename = item != null ? FormatFilename(item.Filename) : "ملف الطباعة";
+            PageCount = item?.PageCount ?? 0;
+            var (ext, extColor) = ResolveFileExt(item?.Filename);
+            ExtLabel = ext;
+            ExtBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString(extColor)!);
             TimeLabel = FormatClock(o.CreatedAt.ToLocalTime());
             PaymentLabel = FormatPaymentStatus(o.PaymentStatus);
             var statusKey = (o.Status ?? "").Trim().ToLowerInvariant();
-            var white = Color.FromRgb(255, 255, 255);
-            var (bg, accent) = statusKey switch
+            var (bg, fg, icon) = statusKey switch
             {
-                "ready" or "collected" or "completed" or "paid" => ("#16A34A", "#16A34A"),
-                "printing" or "queued" or "preparing" => ("#2563EB", "#2563EB"),
-                "awaiting_finishing" or "payment_pending" or "unpaid" or "pending" => ("#D97706", "#D97706"),
-                "needs_review" or "failed" => ("#DC2626", "#DC2626"),
-                _ => ("#475569", "#64748B"),
+                "ready" or "collected" or "completed" => ("#163A2A", "#4ADE80", "\uE73E"),
+                "printing" or "queued" or "preparing" => ("#1E3A5F", "#60A5FA", "\uE823"),
+                "awaiting_finishing" or "payment_pending" or "unpaid" or "pending" or "submitted" or "paid"
+                    => ("#3F2A12", "#FBBF24", "\uE916"),
+                "needs_review" or "failed" => ("#3F1515", "#F87171", "\uE783"),
+                _ => ("#1E293B", "#94A3B8", "\uE946"),
             };
+            StatusIcon = icon;
             StatusBg = new SolidColorBrush((Color)ColorConverter.ConvertFromString(bg)!);
-            StatusFg = new SolidColorBrush(white);
-            AccentBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString(accent)!);
+            StatusFg = new SolidColorBrush((Color)ColorConverter.ConvertFromString(fg)!);
+            AccentBrush = StatusFg;
+        }
+
+        private static string ResolveServiceType(ShopOrder o)
+        {
+            if (o.Items.Length == 0) return "طباعة مستندات";
+            var item = o.Items[0];
+            var name = (item.Filename ?? "").ToLowerInvariant();
+            var color = (item.ColorMode ?? "").ToLowerInvariant();
+            if (name.Contains("photo") || name.EndsWith(".jpg") || name.EndsWith(".jpeg") ||
+                name.EndsWith(".png") || name.EndsWith(".heic"))
+                return "طباعة صور";
+            if (color is "color" or "full_color" or "coloured")
+                return "طباعة ملونة";
+            return "طباعة مستندات";
+        }
+
+        private static (string Label, string Color) ResolveFileExt(string? filename)
+        {
+            var ext = Path.GetExtension(filename ?? "").TrimStart('.').ToUpperInvariant();
+            return ext switch
+            {
+                "PDF" => ("PDF", "#DC2626"),
+                "PPT" or "PPTX" => ("PPTX", "#EA580C"),
+                "DOC" or "DOCX" => ("DOC", "#2563EB"),
+                "XLS" or "XLSX" => ("XLS", "#16A34A"),
+                "JPG" or "JPEG" or "PNG" => ("IMG", "#7C3AED"),
+                _ => (string.IsNullOrEmpty(ext) ? "FILE" : (ext.Length > 4 ? ext[..4] : ext), "#475569"),
+            };
+        }
+    }
+
+    private class QueueJobViewModel
+    {
+        public string Filename { get; }
+        public string MetaLine { get; }
+        public string PagesLabel { get; }
+        public string ExtLabel { get; }
+        public Brush ExtBrush { get; }
+
+        public QueueJobViewModel(OrderViewModel o)
+        {
+            Filename = o.Filename;
+            MetaLine = $"{o.CustomerName}  •  {o.OrderNumberShort}";
+            PagesLabel = o.PageCount > 0
+                ? (o.PageCount == 1 ? "1 صفحة" : $"{o.PageCount} صفحات")
+                : "—";
+            ExtLabel = o.ExtLabel;
+            ExtBrush = o.ExtBrush;
         }
     }
 
@@ -1510,29 +1609,37 @@ public partial class MainWindow : Window
         public string ColorLabel { get; }
         public string DuplexLabel { get; }
         public string QueueLabel { get; }
+        public int QueueCount { get; }
 
         public PrinterViewModel(ShopPrinter p)
         {
             DisplayName = p.DisplayName;
-            StatusAr = p.Status == "online" ? "متصلة" : "غير متصلة";
-            StatusBrush = BrushFor(p.Status == "online");
+            QueueCount = p.QueueLength;
+            QueueLabel = $"{p.QueueLength} في الطابور";
             ColorLabel = p.SupportsColor ? "نعم" : "لا";
             DuplexLabel = p.SupportsDuplex ? "نعم" : "لا";
-            QueueLabel = $"{p.QueueLength} في الطابور";
+            (StatusAr, StatusBrush) = ResolveStatus(p.Status, p.QueueLength);
         }
 
         public PrinterViewModel(PrinterInfo p)
         {
             DisplayName = p.DisplayName;
-            StatusAr = p.Status == "online" ? "متصلة" : "غير متصلة";
-            StatusBrush = BrushFor(p.Status == "online");
+            QueueCount = 0;
+            QueueLabel = "محلي";
             ColorLabel = p.SupportsColor ? "نعم" : "لا";
             DuplexLabel = p.SupportsDuplex ? "نعم" : "لا";
-            QueueLabel = "محلي";
+            (StatusAr, StatusBrush) = ResolveStatus(p.Status, 0);
         }
 
-        private static Brush BrushFor(bool online) =>
-            new SolidColorBrush(online ? Color.FromRgb(0x22, 0xC5, 0x5E) : Color.FromRgb(0xEF, 0x44, 0x44));
+        private static (string Label, Brush Brush) ResolveStatus(string? status, int queueLength)
+        {
+            var online = string.Equals(status, "online", StringComparison.OrdinalIgnoreCase);
+            if (!online)
+                return ("غير متصلة", new SolidColorBrush(Color.FromRgb(0xEF, 0x44, 0x44)));
+            if (queueLength > 0)
+                return ("جاري الطباعة", new SolidColorBrush(Color.FromRgb(0x3B, 0x82, 0xF6)));
+            return ("متصلة", new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E)));
+        }
     }
 
     private class PaymentVm

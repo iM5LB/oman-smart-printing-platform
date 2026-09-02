@@ -17,11 +17,14 @@ services:
     plan: free
     region: oregon
     rootDir: .
-    buildCommand: npm ci --omit=optional && npx turbo run build --filter=@omsp/api
+    # NODE_ENV=production would skip devDependencies (nest CLI, tsc, prisma) and break the build.
+    buildCommand: NPM_CONFIG_PRODUCTION=false npm ci --omit=optional && npx turbo run build --filter=@omsp/api
     preDeployCommand: npm run db:push:prod
     startCommand: npm run start:api
     healthCheckPath: /api/v1/health
     envVars:
+      - key: NODE_VERSION
+        value: "20"
       - key: NODE_ENV
         value: production
       - key: DATABASE_URL
@@ -66,11 +69,15 @@ services:
     plan: free
     region: oregon
     rootDir: .
-    buildCommand: npm ci --omit=optional && npx turbo run build --filter=@omsp/customer-web
+    buildCommand: NPM_CONFIG_PRODUCTION=false npm ci --omit=optional && npx turbo run build --filter=@omsp/customer-web
     startCommand: npm run start:web
     envVars:
+      - key: NODE_VERSION
+        value: "20"
       - key: NODE_ENV
         value: production
+      - key: HOSTNAME
+        value: "0.0.0.0"
       - key: NEXT_PUBLIC_API_URL
         fromService:
           name: omsp-api

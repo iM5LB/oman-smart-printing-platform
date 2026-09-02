@@ -1,26 +1,32 @@
 # ADR-002: Desktop Application Technology
 
 ## Status
-Accepted
+**Superseded in proposal** — see `docs/desktop/ARCHITECTURE.md` (2026-09-02).  
+Previous acceptance (WPF UI) remains for the transitional `apps/shop-desktop` binary only.
 
 ## Context
-The desktop application must reliably control Windows printers, monitor print queues, and run as a background service. Printer integration reliability is the top priority.
+The shop desktop must deliver commercial Arabic RTL UX, reliable Windows printing, offline resilience, tray/autostart/updater, and a print engine that survives UI crashes.
 
-## Decision
-Use **C# .NET 8** with:
-- **WPF** for the main UI (mature Arabic RTL support)
-- **Windows Service** for background print operations
-- **System.Printing** / **PrintDocument** APIs for printer control
+## Prior decision (historical)
+C# .NET 8 + **WPF UI** + Windows printing APIs.
 
-## Alternatives Considered
+## Updated decision
+| Layer | Technology |
+|-------|------------|
+| UI | React + TypeScript + Vite + Tailwind + TanStack Query + Zustand + React Router |
+| Shell | Tauri 2 (Rust) |
+| Print engine | C# .NET 8 worker/service with SQLite |
+| IPC | Versioned Named Pipe protocol v1 |
+
+## Alternatives considered
 | Option | Pros | Cons |
 |--------|------|------|
-| Rust + Tauri | Modern, lightweight | Weaker Windows print API ecosystem |
-| Electron | Cross-platform | Heavy, unreliable print control |
-| .NET MAUI | Cross-platform UI | Less mature print integration |
+| Keep WPF UI | Already started | Harder to match prompt’s React design system velocity |
+| Electron | Familiar web stack | Heavy; weaker native integration vs Tauri |
+| Print APIs from Rust only | Single language | Weaker Windows printing ecosystem than .NET |
 
 ## Consequences
-- Desktop app lives in `apps/shop-desktop/`
-- Communicates with API via WebSocket (see ADR-003)
-- Separate Windows Service project for background printing
-- MSIX packaging for distribution
+- New apps: `shop-desktop-tauri`, `print-service`
+- WPF kept until Phase 1 E2E tests pass
+- Cloud contracts documented in `docs/desktop/API_CONTRACTS.md`
+- Session 0 service vs per-user worker risk documented in `PRINT_SERVICE.md`
