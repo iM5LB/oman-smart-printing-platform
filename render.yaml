@@ -69,8 +69,9 @@ services:
     plan: free
     region: oregon
     rootDir: .
-    # omit=optional skips platform SWC; install Linux binaries explicitly so next build does not call Yarn.
-    buildCommand: NPM_CONFIG_PRODUCTION=false npm ci --omit=optional && npm install --no-save --no-package-lock @next/swc-linux-x64-gnu@15.5.25 @next/swc-linux-x64-musl@15.5.25 && npx turbo run build --filter=@omsp/customer-web
+    # Dashboard must use this build command (Blueprint does not always override a custom UI command).
+    # packageManager is required by Turbo 2.10+; SWC is installed explicitly because --omit=optional skips it.
+    buildCommand: NPM_CONFIG_PRODUCTION=false npm ci --omit=optional && npm run build:web:render
     startCommand: npm run start:web
     envVars:
       - key: NODE_VERSION
