@@ -17,7 +17,8 @@ services:
     plan: free
     region: oregon
     rootDir: .
-    # NODE_ENV=production would skip devDependencies (nest CLI, tsc, prisma) and break the build.
+    # Prefer explicit filters. If the Dashboard overrides this with `npm run build`,
+    # root package.json excludes @omsp/shop-desktop-ui from the default build.
     buildCommand: NPM_CONFIG_PRODUCTION=false npm ci --omit=optional && npx turbo run build --filter=@omsp/api
     preDeployCommand: npm run db:push:prod
     startCommand: npm run start:api

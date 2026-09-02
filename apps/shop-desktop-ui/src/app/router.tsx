@@ -1,5 +1,5 @@
-import type { ReactNode } from 'react';
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { useEffect, type ReactNode } from 'react';
+import { BrowserRouter, Navigate, Route, Routes, useNavigate } from 'react-router-dom';
 import { AppShell } from '@/components/layout/AppShell';
 import { LoginPage } from '@/features/auth/LoginPage';
 import { DashboardPage } from '@/features/dashboard/DashboardPage';
@@ -17,11 +17,31 @@ function RequireAuth({ children }: { children: ReactNode }) {
   return children;
 }
 
+function Shortcuts() {
+  const navigate = useNavigate();
+  const ok = useUiStore((s) => s.authenticated);
+
+  useEffect(() => {
+    if (!ok) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'F2') {
+        e.preventDefault();
+        navigate('/pickup');
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [navigate, ok]);
+
+  return null;
+}
+
 export function AppRouter() {
   const ok = useUiStore((s) => s.authenticated);
 
   return (
     <BrowserRouter>
+      <Shortcuts />
       <Routes>
         <Route path="/login" element={ok ? <Navigate to="/" replace /> : <LoginPage />} />
         <Route
