@@ -9,7 +9,7 @@
   ],
   "scripts": {
     "dev": "turbo run dev",
-    "build": "turbo run build --filter=!@omsp/shop-desktop-ui",
+    "build": "turbo run build --filter=!@omsp/shop-desktop-app",
     "build:all": "turbo run build",
     "lint": "turbo run lint",
     "test": "turbo run test",
@@ -26,8 +26,8 @@
     "start:api": "npm run start --workspace=@omsp/api",
     "start:web": "npm run start --workspace=@omsp/customer-web",
     "db:push:prod": "npm run db:push:prod --workspace=@omsp/database",
-    "desktop:dev": "npm run dev --workspace=@omsp/shop-desktop-ui",
-    "desktop:build": "npm run build --workspace=@omsp/shop-desktop-ui"
+    "desktop:dev": "node scripts/desktop-dev.mjs",
+    "desktop:build": "npm run worker:build --workspace=@omsp/shop-desktop-app && npm run tauri:build --workspace=@omsp/shop-desktop-app"
   },
   "devDependencies": {
     "turbo": "^2.5.0",
