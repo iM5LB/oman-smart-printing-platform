@@ -47,7 +47,14 @@ services:
         value: "300"
       - key: OTP_DEV_EXPOSE
         value: "false"
+      - key: LIBRARY_SETUP_PASSWORD
+        sync: false
       - key: API_URL
+        fromService:
+          name: omsp-api
+          type: web
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: PUBLIC_API_URL
         fromService:
           name: omsp-api
           type: web
@@ -58,10 +65,7 @@ services:
           type: web
           envVarKey: RENDER_EXTERNAL_URL
       - key: CORS_ORIGIN
-        fromService:
-          name: omsp-web
-          type: web
-          envVarKey: RENDER_EXTERNAL_URL
+        value: "https://omsp.onrender.com,http://localhost:3000,http://localhost:3001,http://localhost:1420,tauri://localhost,https://tauri.localhost"
 
   - type: web
     name: omsp-web

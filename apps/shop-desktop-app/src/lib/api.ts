@@ -22,15 +22,11 @@ clearLegacyStoredApiUrl();
 
 /**
  * API origin (no trailing slash).
- * - Production/release: always Render.
- * - DEV (`tauri:dev` / Vite): `VITE_API_URL` if set, else localhost:4000.
+ * Defaults to Render. Set VITE_API_URL=http://localhost:4000 only for a local API.
  */
 export function getApiBase(): string {
-  if (import.meta.env.DEV) {
-    const fromEnv = import.meta.env.VITE_API_URL;
-    if (fromEnv) return normalizeApiBase(fromEnv);
-    return "http://localhost:4000";
-  }
+  const fromEnv = import.meta.env.VITE_API_URL;
+  if (fromEnv) return normalizeApiBase(fromEnv);
   return PRODUCTION_API_BASE;
 }
 
@@ -38,7 +34,6 @@ export function getApiBase(): string {
 export function getWebBase(): string {
   const fromEnv = import.meta.env.VITE_WEB_URL;
   if (fromEnv) return normalizeApiBase(fromEnv);
-  if (import.meta.env.DEV) return "http://localhost:3000";
   return "https://omsp.onrender.com";
 }
 

@@ -2,7 +2,7 @@ namespace OmanPrint.Core.Models;
 
 public class AppSettings
 {
-    public string ApiUrl { get; set; } = "http://localhost:4000";
+    public string ApiUrl { get; set; } = "https://omsp-api.onrender.com";
     public string DeviceToken { get; set; } = "";
     public string DeviceName { get; set; } = "جهاز الكاونتر";
     public string StoreSlug { get; set; } = "al-noor";

@@ -9,15 +9,13 @@ function normalizeApiBase(url: string): string {
 export function getApiBase(): string {
   const fromEnv = process.env.NEXT_PUBLIC_API_URL;
   if (fromEnv) return normalizeApiBase(fromEnv);
-  if (process.env.NODE_ENV === 'development') return 'http://localhost:4000';
   return PRODUCTION_API_BASE;
 }
 
 export function getCustomerShopBase(): string {
   const fromEnv = process.env.NEXT_PUBLIC_CUSTOMER_WEB_URL;
   if (fromEnv) return fromEnv.replace(/\/+$/, '');
-  if (process.env.NODE_ENV === 'development') return 'http://localhost:3000';
-  return 'https://omsp.netlify.app';
+  return 'https://omsp.onrender.com';
 }
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {

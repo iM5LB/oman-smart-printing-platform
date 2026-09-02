@@ -7,14 +7,11 @@ function normalizeApiBase(url: string): string {
 
 /**
  * Public API origin (no trailing slash).
- * - `NEXT_PUBLIC_API_URL` if set (local override)
- * - else `http://localhost:4000` in development
- * - else Render production URL
+ * Defaults to Render production. Set NEXT_PUBLIC_API_URL=http://localhost:4000 for a local API.
  */
 export function getApiBase(): string {
   const fromEnv = process.env.NEXT_PUBLIC_API_URL;
   if (fromEnv) return normalizeApiBase(fromEnv);
-  if (process.env.NODE_ENV === 'development') return 'http://localhost:4000';
   return PRODUCTION_API_BASE;
 }
 

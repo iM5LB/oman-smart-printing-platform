@@ -69,7 +69,7 @@
                                TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,16" FontSize="13"/>
 
                     <TextBlock Text="رابط الخادم" Style="{StaticResource LabelText}"/>
-                    <TextBox x:Name="SetupApiUrl" Style="{StaticResource InputBox}" Text="http://localhost:4000" Margin="0,0,0,10"/>
+                    <TextBox x:Name="SetupApiUrl" Style="{StaticResource InputBox}" Text="https://omsp-api.onrender.com" Margin="0,0,0,10"/>
                     <TextBlock Text="معرّف المكتبة" Style="{StaticResource LabelText}"/>
                     <TextBox x:Name="SetupStoreSlug" Style="{StaticResource InputBox}" Text="al-noor" Margin="0,0,0,10"/>
                     <TextBlock Text="اسم الجهاز" Style="{StaticResource LabelText}"/>
