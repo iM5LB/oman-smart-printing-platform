@@ -1,0 +1,538 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  owner
+  manager
+  employee
+  cashier
+  print_worker
+}
+
+enum OrderStatus {
+  draft
+  submitted
+  payment_pending
+  paid
+  review_pending
+  queued
+  preparing
+  printing
+  awaiting_finishing
+  ready
+  collected
+  completed
+  cancelled
+  failed
+  needs_review
+}
+
+enum PaymentStatus {
+  unpaid
+  pending
+  processing
+  completed
+  failed
+  cancelled
+  refunded
+}
+
+enum PaymentMethod {
+  pay_at_pickup
+  online
+}
+
+enum InStorePaymentMethod {
+  cash
+  card_pos
+}
+
+enum ColorMode {
+  bw
+  color
+  grayscale
+}
+
+enum PaperSize {
+  A4
+  A3
+  A5
+}
+
+enum PrintSides {
+  single
+  duplex_long
+  duplex_short
+}
+
+enum Orientation {
+  auto
+  portrait
+  landscape
+}
+
+enum PrintJobStatus {
+  queued
+  preparing
+  downloading
+  printing
+  completed
+  failed
+  paused
+  cancelled
+}
+
+enum QueuePriority {
+  urgent
+  normal
+  low
+}
+
+enum PrinterStatus {
+  online
+  offline
+  error
+  busy
+}
+
+enum DeviceStatus {
+  connected
+  disconnected
+  revoked
+}
+
+enum FileRetentionPolicy {
+  immediate
+  one_hour
+  twenty_four_hours
+  three_days
+  seven_days
+}
+
+enum PayAtPickupPrintPolicy {
+  auto_print
+  require_approval
+  print_on_arrival
+}
+
+enum NotificationChannel {
+  sms
+  whatsapp
+}
+
+enum NotificationStatus {
+  pending
+  sent
+  failed
+}
+
+enum AuditAction {
+  order_created
+  order_updated
+  order_cancelled
+  payment_completed
+  payment_refunded
+  print_started
+  print_completed
+  print_failed
+  print_reprint
+  price_changed
+  file_uploaded
+  file_deleted
+  employee_action
+  settings_changed
+}
+
+// ─── Store (Tenant) ──────────────────────────────────────────────────────────
+
+model Store {
+  id                       String                 @id @default(uuid()) @db.Uuid
+  slug                     String                 @unique
+  name                     String
+  logoUrl                  String?                @map("logo_url")
+  phone                    String?
+  governorate              String?
+  wilayat                  String?
+  area                     String?
+  address                  String?
+  latitude                 Float?
+  longitude                Float?
+  isActive                 Boolean                @default(true) @map("is_active")
+  orderNumberPrefix        String                 @default("#") @map("order_number_prefix")
+  orderNumberCounter       Int                    @default(0) @map("order_number_counter")
+  autoPrintPaidOrders      Boolean                @default(true) @map("auto_print_paid_orders")
+  payAtPickupPrintPolicy   PayAtPickupPrintPolicy @default(require_approval) @map("pay_at_pickup_print_policy")
+  fileRetentionPolicy      FileRetentionPolicy    @default(twenty_four_hours) @map("file_retention_policy")
+  paidOrdersPriority       QueuePriority          @default(urgent) @map("paid_orders_priority")
+  taxRateBps               Int                    @default(0) @map("tax_rate_bps") // basis points, 500 = 5%
+  createdAt                DateTime               @default(now()) @map("created_at")
+  updatedAt                DateTime               @updatedAt @map("updated_at")
+
+  users              StoreUser[]
+  openingHours       StoreOpeningHours[]
+  pricingRules       PricingRule[]
+  finishingServices  FinishingService[]
+  paperTypes         PaperType[]
+  orders             Order[]
+  printers           Printer[]
+  devices            Device[]
+  auditLogs          AuditLog[]
+  notifications      Notification[]
+
+  @@map("stores")
+}
+
+model StoreOpeningHours {
+  id        String  @id @default(uuid()) @db.Uuid
+  storeId   String  @map("store_id") @db.Uuid
+  dayOfWeek Int     @map("day_of_week") // 0=Saturday (Oman week starts Saturday)
+  openTime  String  @map("open_time")   // "08:00"
+  closeTime String  @map("close_time")  // "22:00"
+  isClosed  Boolean @default(false) @map("is_closed")
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, dayOfWeek])
+  @@map("store_opening_hours")
+}
+
+// ─── Users & Auth ────────────────────────────────────────────────────────────
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  name         String
+  phone        String?
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  storeUsers StoreUser[]
+  auditLogs  AuditLog[]
+
+  @@map("users")
+}
+
+model StoreUser {
+  id        String   @id @default(uuid()) @db.Uuid
+  storeId   String   @map("store_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  role      UserRole
+  createdAt DateTime @default(now()) @map("created_at")
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, userId])
+  @@map("store_users")
+}
+
+// ─── Pricing ─────────────────────────────────────────────────────────────────
+
+model PricingRule {
+  id           String    @id @default(uuid()) @db.Uuid
+  storeId      String    @map("store_id") @db.Uuid
+  paperSize    PaperSize @map("paper_size")
+  colorMode    ColorMode @map("color_mode")
+  pricePerPage Int       @map("price_per_page") // baisa per page
+  isActive     Boolean   @default(true) @map("is_active")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, paperSize, colorMode])
+  @@map("pricing_rules")
+}
+
+model PricingTier {
+  id              String @id @default(uuid()) @db.Uuid
+  storeId         String @map("store_id") @db.Uuid
+  minPages        Int    @map("min_pages")
+  maxPages        Int?   @map("max_pages")
+  discountPercent Int    @map("discount_percent") // e.g. 10 = 10% off
+  isActive        Boolean @default(true) @map("is_active")
+
+  @@map("pricing_tiers")
+}
+
+model FinishingService {
+  id          String  @id @default(uuid()) @db.Uuid
+  storeId     String  @map("store_id") @db.Uuid
+  nameAr      String  @map("name_ar")
+  description String?
+  priceBaisa  Int     @map("price_baisa")
+  isActive    Boolean @default(true) @map("is_active")
+  sortOrder   Int     @default(0) @map("sort_order")
+
+  store              Store                     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  orderItemServices  OrderItemFinishingService[]
+
+  @@map("finishing_services")
+}
+
+model PaperType {
+  id              String    @id @default(uuid()) @db.Uuid
+  storeId         String    @map("store_id") @db.Uuid
+  nameAr          String    @map("name_ar")
+  surchargeBaisa  Int       @default(0) @map("surcharge_baisa")
+  paperSize       PaperSize @map("paper_size")
+  isActive        Boolean   @default(true) @map("is_active")
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@map("paper_types")
+}
+
+// ─── Orders ──────────────────────────────────────────────────────────────────
+
+model Order {
+  id              String        @id @default(uuid()) @db.Uuid
+  storeId         String        @map("store_id") @db.Uuid
+  orderNumber     Int           @map("order_number")
+  displayNumber   String        @map("display_number") // "#124"
+  status          OrderStatus   @default(draft)
+  paymentStatus   PaymentStatus @default(unpaid) @map("payment_status")
+  paymentMethod   PaymentMethod? @map("payment_method")
+  customerName    String?       @map("customer_name")
+  customerPhone   String?       @map("customer_phone") // normalized +968XXXXXXXX
+  customerNotes   String?       @map("customer_notes")
+  trackingToken   String        @unique @map("tracking_token")
+  subtotalBaisa   Int           @default(0) @map("subtotal_baisa")
+  taxBaisa        Int           @default(0) @map("tax_baisa")
+  totalBaisa      Int           @default(0) @map("total_baisa")
+  deleteFilesImmediately Boolean @default(false) @map("delete_files_immediately")
+  filesDeletedAt  DateTime?     @map("files_deleted_at")
+  completedAt     DateTime?     @map("completed_at")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  store         Store          @relation(fields: [storeId], references: [id])
+  items         OrderItem[]
+  payments      Payment[]
+  printJobs     PrintJob[]
+  notifications Notification[]
+
+  @@unique([storeId, orderNumber])
+  @@index([storeId, status])
+  @@index([customerPhone])
+  @@map("orders")
+}
+
+model OrderItem {
+  id            String      @id @default(uuid()) @db.Uuid
+  orderId       String      @map("order_id") @db.Uuid
+  sortOrder     Int         @default(0) @map("sort_order")
+  originalFilename String   @map("original_filename")
+  pageCount     Int         @map("page_count")
+  copies        Int         @default(1)
+  colorMode     ColorMode   @default(bw) @map("color_mode")
+  paperSize     PaperSize   @default(A4) @map("paper_size")
+  sides         PrintSides  @default(single)
+  orientation   Orientation @default(auto)
+  pageRange     String      @default("all") @map("page_range") // "all" or "1-5,8,12-20"
+  pagesPerSheet Int         @default(1) @map("pages_per_sheet")
+  paperTypeId   String?     @map("paper_type_id") @db.Uuid
+  subtotalBaisa Int         @default(0) @map("subtotal_baisa")
+
+  // File references (null after deletion, metadata kept)
+  originalFileKey  String? @map("original_file_key")
+  convertedFileKey String? @map("converted_file_key")
+  previewFileKey   String? @map("preview_file_key")
+  fileSizeBytes    Int?    @map("file_size_bytes")
+  mimeType         String? @map("mime_type")
+
+  order             Order                       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  finishingServices OrderItemFinishingService[]
+  printJobs         PrintJob[]
+
+  @@map("order_items")
+}
+
+model OrderItemFinishingService {
+  id                 String @id @default(uuid()) @db.Uuid
+  orderItemId        String @map("order_item_id") @db.Uuid
+  finishingServiceId String @map("finishing_service_id") @db.Uuid
+  priceBaisa         Int    @map("price_baisa")
+
+  orderItem        OrderItem        @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  finishingService FinishingService @relation(fields: [finishingServiceId], references: [id])
+
+  @@map("order_item_finishing_services")
+}
+
+// ─── Payments ────────────────────────────────────────────────────────────────
+
+model Payment {
+  id                String        @id @default(uuid()) @db.Uuid
+  orderId           String        @map("order_id") @db.Uuid
+  amountBaisa       Int           @map("amount_baisa")
+  status            PaymentStatus @default(pending)
+  method            PaymentMethod
+  provider          String?       // "mock", "thawani", etc.
+  providerPaymentId String?       @map("provider_payment_id")
+  providerMetadata  Json?         @map("provider_metadata")
+  inStoreMethod     InStorePaymentMethod? @map("in_store_method")
+  paidAt            DateTime?     @map("paid_at")
+  refundedAt        DateTime?     @map("refunded_at")
+  refundAmountBaisa Int?          @map("refund_amount_baisa")
+  createdAt         DateTime      @default(now()) @map("created_at")
+  updatedAt         DateTime      @updatedAt @map("updated_at")
+
+  order Order @relation(fields: [orderId], references: [id])
+
+  @@index([providerPaymentId])
+  @@map("payments")
+}
+
+// ─── Printing ────────────────────────────────────────────────────────────────
+
+model Printer {
+  id               String        @id @default(uuid()) @db.Uuid
+  storeId          String        @map("store_id") @db.Uuid
+  deviceId         String?       @map("device_id") @db.Uuid
+  osName           String        @map("os_name")
+  displayName      String?       @map("display_name")
+  status           PrinterStatus @default(offline)
+  supportsColor    Boolean       @default(false) @map("supports_color")
+  supportsDuplex   Boolean       @default(false) @map("supports_duplex")
+  supportedSizes   PaperSize[]   @map("supported_sizes")
+  roles            String[]      // ["bw_a4", "color_a4", "photo"]
+  isDefault        Boolean       @default(false) @map("is_default")
+  queueLength      Int           @default(0) @map("queue_length")
+  lastSeenAt       DateTime?     @map("last_seen_at")
+  createdAt        DateTime      @default(now()) @map("created_at")
+  updatedAt        DateTime      @updatedAt @map("updated_at")
+
+  store     Store      @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  device    Device?    @relation(fields: [deviceId], references: [id])
+  printJobs PrintJob[]
+
+  @@map("printers")
+}
+
+model PrintJob {
+  id              String         @id @default(uuid()) @db.Uuid
+  orderId         String         @map("order_id") @db.Uuid
+  orderItemId     String         @map("order_item_id") @db.Uuid
+  printerId       String?        @map("printer_id") @db.Uuid
+  deviceId        String?        @map("device_id") @db.Uuid
+  status          PrintJobStatus @default(queued)
+  priority        QueuePriority  @default(normal)
+  idempotencyKey  String         @unique @map("idempotency_key")
+  attemptNumber   Int            @default(1) @map("attempt_number")
+  settings        Json           // serialized print settings
+  failureReason   String?        @map("failure_reason")
+  failureCode     String?        @map("failure_code")
+  pagesPrinted    Int?           @map("pages_printed")
+  startedAt       DateTime?      @map("started_at")
+  completedAt     DateTime?      @map("completed_at")
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+
+  order     Order     @relation(fields: [orderId], references: [id])
+  orderItem OrderItem @relation(fields: [orderItemId], references: [id])
+  printer   Printer?  @relation(fields: [printerId], references: [id])
+  device    Device?   @relation(fields: [deviceId], references: [id])
+
+  @@index([orderId])
+  @@index([status])
+  @@map("print_jobs")
+}
+
+// ─── Devices ─────────────────────────────────────────────────────────────────
+
+model Device {
+  id           String       @id @default(uuid()) @db.Uuid
+  storeId      String       @map("store_id") @db.Uuid
+  name         String       // "جهاز الكاونتر"
+  tokenHash    String       @unique @map("token_hash")
+  status       DeviceStatus @default(connected)
+  osVersion    String?      @map("os_version")
+  appVersion   String?      @map("app_version")
+  lastConnectedAt DateTime? @map("last_connected_at")
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+
+  store     Store      @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  printers  Printer[]
+  printJobs PrintJob[]
+
+  @@map("devices")
+}
+
+// ─── Notifications ───────────────────────────────────────────────────────────
+
+model Notification {
+  id        String              @id @default(uuid()) @db.Uuid
+  storeId   String              @map("store_id") @db.Uuid
+  orderId   String              @map("order_id") @db.Uuid
+  channel   NotificationChannel
+  status    NotificationStatus  @default(pending)
+  phone     String
+  message   String
+  provider  String?
+  providerMessageId String?     @map("provider_message_id")
+  sentAt    DateTime?           @map("sent_at")
+  createdAt DateTime            @default(now()) @map("created_at")
+
+  store Store @relation(fields: [storeId], references: [id])
+  order Order @relation(fields: [orderId], references: [id])
+
+  @@map("notifications")
+}
+
+// ─── Audit ───────────────────────────────────────────────────────────────────
+
+model AuditLog {
+  id         String      @id @default(uuid()) @db.Uuid
+  storeId    String      @map("store_id") @db.Uuid
+  userId     String?     @map("user_id") @db.Uuid
+  action     AuditAction
+  entityType String      @map("entity_type") // "order", "payment", "print_job"
+  entityId   String      @map("entity_id") @db.Uuid
+  metadata   Json?
+  createdAt  DateTime    @default(now()) @map("created_at")
+
+  store Store @relation(fields: [storeId], references: [id])
+  user  User? @relation(fields: [userId], references: [id])
+
+  @@index([storeId, createdAt])
+  @@index([entityType, entityId])
+  @@map("audit_logs")
+}
+
+// ─── Customer phone OTP auth ─────────────────────────────────────────────────
+
+model CustomerOtp {
+  id        String   @id @default(uuid()) @db.Uuid
+  phone     String
+  codeHash  String   @map("code_hash")
+  expiresAt DateTime @map("expires_at")
+  attempts  Int      @default(0)
+  consumed  Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([phone, createdAt])
+  @@map("customer_otps")
+}
+
+model CustomerSession {
+  id        String   @id @default(uuid()) @db.Uuid
+  phone     String
+  tokenHash String   @unique @map("token_hash")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([phone])
+  @@map("customer_sessions")
+}

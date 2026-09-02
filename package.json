@@ -1,0 +1,42 @@
+{
+  "name": "oman-smart-printing-platform",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Smart printing platform for Omani print shops, libraries, and copy centers",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "db:generate": "npm run generate --workspace=@omsp/database",
+    "db:migrate": "npm run migrate --workspace=@omsp/database",
+    "db:push": "npm run push --workspace=@omsp/database",
+    "db:seed": "npm run seed --workspace=@omsp/database",
+    "db:setup": "node scripts/setup-db.mjs",
+    "dev:db": "node scripts/start-db.mjs",
+    "dev:all": "node scripts/dev-all.mjs",
+    "db:studio": "npm run studio --workspace=@omsp/database",
+    "build:api": "turbo run build --filter=@omsp/api",
+    "build:web": "turbo run build --filter=@omsp/customer-web",
+    "start:api": "npm run start --workspace=@omsp/api",
+    "start:web": "npm run start --workspace=@omsp/customer-web",
+    "db:push:prod": "npm run db:push:prod --workspace=@omsp/database"
+  },
+  "devDependencies": {
+    "@embedded-postgres/windows-x64": "^17.5.0-beta.15",
+    "embedded-postgres": "^17.5.0-beta.15",
+    "turbo": "^2.5.0",
+    "typescript": "^5.8.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "packageManager": "npm@10.0.0",
+  "allowScripts": {
+    "@embedded-postgres/windows-x64@17.5.0-beta.15": true
+  }
+}

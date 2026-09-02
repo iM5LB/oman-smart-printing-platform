@@ -1,0 +1,83 @@
+# Oman Smart Printing Platform — Render Blueprint
+# https://dashboard.render.com/blueprint/new?repo=<YOUR_GITHUB_REPO_URL>
+#
+# Free Postgres expires after 30 days. Free web services spin down after inactivity.
+# Uploads use local disk on the API service (ephemeral on free without a paid disk).
+
+databases:
+  - name: omsp-db
+    plan: free
+    databaseName: omsp
+    user: omsp
+
+services:
+  - type: web
+    name: omsp-api
+    runtime: node
+    plan: free
+    region: oregon
+    rootDir: .
+    buildCommand: npm ci && npx turbo run build --filter=@omsp/api
+    preDeployCommand: npm run db:push:prod
+    startCommand: npm run start:api
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: omsp-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      - key: PAYMENT_PROVIDER
+        value: mock
+      - key: SMS_PROVIDER
+        value: mock
+      - key: STORAGE_LOCAL_PATH
+        value: /opt/render/project/src/apps/api/.data/uploads
+      - key: MAX_FILE_SIZE_BYTES
+        value: "52428800"
+      - key: SIGNED_URL_TTL_SECONDS
+        value: "300"
+      - key: OTP_DEV_EXPOSE
+        value: "false"
+      - key: API_URL
+        fromService:
+          name: omsp-api
+          type: web
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: NEXT_PUBLIC_APP_URL
+        fromService:
+          name: omsp-web
+          type: web
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: CORS_ORIGIN
+        fromService:
+          name: omsp-web
+          type: web
+          envVarKey: RENDER_EXTERNAL_URL
+
+  - type: web
+    name: omsp-web
+    runtime: node
+    plan: free
+    region: oregon
+    rootDir: .
+    buildCommand: npm ci && npx turbo run build --filter=@omsp/customer-web
+    startCommand: npm run start:web
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_PUBLIC_API_URL
+        fromService:
+          name: omsp-api
+          type: web
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: NEXT_PUBLIC_APP_URL
+        fromService:
+          name: omsp-web
+          type: web
+          envVarKey: RENDER_EXTERNAL_URL

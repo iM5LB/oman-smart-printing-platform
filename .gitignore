@@ -1,0 +1,75 @@
+# Dependencies / libs
+node_modules/
+**/node_modules/
+.pnp
+.pnp.js
+libs/
+**/libs/
+vendor/
+**/vendor/
+
+# Build
+dist/
+**/dist/
+.next/
+**/.next/
+out/
+build/
+*.tsbuildinfo
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+credentials.json
+**/secrets/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Turbo
+.turbo/
+**/.turbo/
+
+# Local databases & uploads
+.pgdata/
+.data/
+**/.data/
+apps/api/.data/
+
+# Prisma
+packages/database/prisma/migrations/**/migration_lock.toml
+
+# Netlify
+.netlify/
+
+# Desktop (WPF)
+apps/shop-desktop/**/bin/
+apps/shop-desktop/**/obj/
+apps/shop-desktop/**/*.user
+apps/shop-desktop/**/*.exe
+apps/shop-desktop/**/*.dll
+apps/shop-desktop/**/*.pdb
+
+# Logs
+*.log
+npm-debug.log*
+yarn-error.log*
+
+# Test
+coverage/
+
+# Temp
+tmp/
+temp/
+*.tmp
