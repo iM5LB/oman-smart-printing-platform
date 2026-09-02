@@ -27,16 +27,14 @@
     "db:push:prod": "npm run db:push:prod --workspace=@omsp/database"
   },
   "devDependencies": {
-    "@embedded-postgres/windows-x64": "^17.5.0-beta.15",
-    "embedded-postgres": "^17.5.0-beta.15",
     "turbo": "^2.5.0",
     "typescript": "^5.8.0"
+  },
+  "optionalDependencies": {
+    "embedded-postgres": "^17.5.0-beta.15"
   },
   "engines": {
     "node": ">=20.0.0"
   },
-  "packageManager": "npm@10.0.0",
-  "allowScripts": {
-    "@embedded-postgres/windows-x64@17.5.0-beta.15": true
-  }
+  "packageManager": "npm@10.0.0"
 }

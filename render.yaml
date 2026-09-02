@@ -17,7 +17,7 @@ services:
     plan: free
     region: oregon
     rootDir: .
-    buildCommand: npm ci && npx turbo run build --filter=@omsp/api
+    buildCommand: npm ci --omit=optional && npx turbo run build --filter=@omsp/api
     preDeployCommand: npm run db:push:prod
     startCommand: npm run start:api
     healthCheckPath: /api/v1/health
@@ -66,7 +66,7 @@ services:
     plan: free
     region: oregon
     rootDir: .
-    buildCommand: npm ci && npx turbo run build --filter=@omsp/customer-web
+    buildCommand: npm ci --omit=optional && npx turbo run build --filter=@omsp/customer-web
     startCommand: npm run start:web
     envVars:
       - key: NODE_ENV
