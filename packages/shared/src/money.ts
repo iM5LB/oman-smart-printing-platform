@@ -60,29 +60,53 @@ export function calculateItemPrice(params: {
 }
 
 /**
- * Normalize Omani phone number to +968XXXXXXXX format.
+ * Normalize a phone number to E.164 (+digits) when possible.
+ * Oman-friendly defaults: 8-digit local numbers starting with 7/9 → +968XXXXXXXX.
+ * Also accepts +968… / 968… and other international numbers (+CC…).
  */
-export function normalizeOmaniPhone(phone: string): string | null {
-  const digits = phone.replace(/\D/g, '');
+export function normalizePhone(phone: string): string | null {
+  const trimmed = phone.trim();
+  if (!trimmed) return null;
 
-  let normalized: string;
-  if (digits.startsWith('968') && digits.length === 11) {
-    normalized = `+${digits}`;
-  } else if (digits.length === 8 && /^[79]/.test(digits)) {
-    normalized = `+968${digits}`;
-  } else {
-    return null;
+  const hasPlus = trimmed.startsWith('+');
+  const digits = trimmed.replace(/\D/g, '');
+  if (!digits) return null;
+
+  // Oman local: 8 digits starting with 7 or 9
+  if (digits.length === 8 && /^[79]/.test(digits)) {
+    return `+968${digits}`;
   }
 
-  return normalized;
+  // Oman with country code
+  if (digits.startsWith('968') && digits.length === 11) {
+    return `+${digits}`;
+  }
+
+  // Explicit international (+…): E.164 allows 8–15 digits total
+  if (hasPlus && digits.length >= 8 && digits.length <= 15) {
+    return `+${digits}`;
+  }
+
+  // Digits without +: treat 10–15 digit values as international
+  if (!hasPlus && digits.length >= 10 && digits.length <= 15) {
+    return `+${digits}`;
+  }
+
+  return null;
 }
 
 /**
- * Validate Omani phone number.
+ * Validate a phone number (international-friendly; Oman local still accepted).
  */
-export function isValidOmaniPhone(phone: string): boolean {
-  return normalizeOmaniPhone(phone) !== null;
+export function isValidPhone(phone: string): boolean {
+  return normalizePhone(phone) !== null;
 }
+
+/** @deprecated Use normalizePhone — kept for older imports. */
+export const normalizeOmaniPhone = normalizePhone;
+
+/** @deprecated Use isValidPhone — kept for older imports. */
+export const isValidOmaniPhone = isValidPhone;
 
 /**
  * Parse page range string into array of page numbers.
