@@ -2,9 +2,16 @@ import { NavLink, useNavigate } from "react-router-dom";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useAuth } from "../lib/auth";
 import { shopApi } from "../lib/api";
+import {
+  checkForUpdate,
+  downloadAndInstallUpdate,
+  formatProgress,
+  type InstallProgress,
+} from "../lib/updates";
 import { Icons } from "./icons";
 import { NotificationBell } from "./NotificationBell";
 import { useToast } from "./Toast";
+import { Button } from "./ui";
 
 const nav = [
   { to: "/", label: "الرئيسية", end: true, icon: Icons.home },
@@ -28,6 +35,12 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { push: pushToast } = useToast();
   const [online, setOnline] = useState(true);
   const knownOrderIds = useRef<Set<string> | null>(null);
+  const [updateVersion, setUpdateVersion] = useState<string | null>(null);
+  const [updateBusy, setUpdateBusy] = useState(false);
+  const [updateProgress, setUpdateProgress] = useState<InstallProgress | null>(
+    null,
+  );
+  const updatePrompted = useRef(false);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -39,6 +52,34 @@ export function AppShell({ children }: { children: ReactNode }) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [navigate]);
+
+  useEffect(() => {
+    if (updatePrompted.current) return;
+    updatePrompted.current = true;
+    let cancelled = false;
+    void (async () => {
+      const result = await checkForUpdate({ silent: true });
+      if (cancelled || result.status !== "available") return;
+      setUpdateVersion(result.version);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const acceptUpdate = async () => {
+    setUpdateBusy(true);
+    setUpdateProgress({ downloaded: 0, total: null });
+    try {
+      await downloadAndInstallUpdate({
+        onProgress: (p) => setUpdateProgress(p),
+      });
+    } catch {
+      setUpdateBusy(false);
+      setUpdateProgress(null);
+      setUpdateVersion(null);
+    }
+  };
 
   useEffect(() => {
     if (!token) return;
@@ -161,16 +202,26 @@ export function AppShell({ children }: { children: ReactNode }) {
           <div className="mt-auto space-y-2 border-t border-border-default p-3">
             <div
               className="flex items-center gap-2 px-1 py-0.5"
-              aria-label={online ? "متصل بالإنترنت" : "غير متصل"}
+              aria-label={
+                online
+                  ? me?.store.name
+                    ? `متصل — ${me.store.name}`
+                    : "متصل"
+                  : "غير متصل"
+              }
             >
               <span
                 className={`size-2 shrink-0 rounded-full ${online ? "bg-success animate-pulse-dot" : "bg-danger"}`}
                 aria-hidden
               />
               <span
-                className={`text-meta ${online ? "text-success" : "text-danger"}`}
+                className={`truncate text-meta ${online ? "text-success" : "text-danger"}`}
               >
-                {online ? "متصل بالإنترنت" : "غير متصل"}
+                {online
+                  ? me?.store.name
+                    ? `متصل — ${me.store.name}`
+                    : "متصل"
+                  : "غير متصل"}
               </span>
             </div>
             <button
@@ -200,6 +251,50 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         </main>
       </div>
+
+      {updateVersion ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="update-dialog-title"
+        >
+          <div className="w-full max-w-md rounded-2xl border border-border-default bg-bg-surface p-5 shadow-xl">
+            <h2 id="update-dialog-title" className="text-title">
+              يتوفر تحديث
+            </h2>
+            <p className="mt-2 text-body text-text-secondary">
+              يتوفر الإصدار{" "}
+              <span className="font-semibold text-text-primary" dir="ltr">
+                v{updateVersion}
+              </span>
+              . هل تريد التحديث الآن؟
+            </p>
+            {updateBusy && updateProgress ? (
+              <p className="mt-3 text-meta text-primary">
+                {formatProgress(updateProgress)}
+              </p>
+            ) : null}
+            <div className="mt-5 flex flex-wrap justify-end gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={updateBusy}
+                onClick={() => setUpdateVersion(null)}
+              >
+                لاحقاً
+              </Button>
+              <Button
+                type="button"
+                disabled={updateBusy}
+                onClick={() => void acceptUpdate()}
+              >
+                {updateBusy ? "جاري التحديث…" : "تحديث الآن"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

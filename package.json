@@ -23,8 +23,11 @@
     "db:studio": "npm run studio --workspace=@omsp/database",
     "build:api": "turbo run build --filter=@omsp/api",
     "build:web": "turbo run build --filter=@omsp/customer-web",
+    "build:library": "turbo run build --filter=@omsp/library-web",
     "start:api": "npm run start --workspace=@omsp/api",
     "start:web": "npm run start --workspace=@omsp/customer-web",
+    "start:library": "npm run start --workspace=@omsp/library-web",
+    "dev:library": "npm run dev --workspace=@omsp/library-web",
     "db:push:prod": "npm run db:push:prod --workspace=@omsp/database",
     "desktop:dev": "node scripts/desktop-dev.mjs",
     "desktop:build": "npm run worker:build --workspace=@omsp/shop-desktop-app && npm run tauri:build --workspace=@omsp/shop-desktop-app"
@@ -38,6 +41,5 @@
   },
   "engines": {
     "node": ">=20.0.0"
-  },
-  "packageManager": "npm@10.0.0"
+  }
 }

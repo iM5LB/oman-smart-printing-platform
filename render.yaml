@@ -17,9 +17,8 @@ services:
     plan: free
     region: oregon
     rootDir: .
-    # Prefer explicit filters. If the Dashboard overrides this with `npm run build`,
-    # root package.json excludes @omsp/shop-desktop-ui from the default build.
-    buildCommand: NPM_CONFIG_PRODUCTION=false npm ci --omit=optional && npx turbo run build --filter=@omsp/api
+    # Prefer explicit filters so desktop apps are not part of the API image build.
+    buildCommand: corepack disable 2>/dev/null || true; NPM_CONFIG_PRODUCTION=false npm ci --omit=optional && npx turbo run build --filter=@omsp/api
     preDeployCommand: npm run db:push:prod
     startCommand: npm run start:api
     healthCheckPath: /api/v1/health
@@ -70,7 +69,7 @@ services:
     plan: free
     region: oregon
     rootDir: .
-    buildCommand: NPM_CONFIG_PRODUCTION=false npm ci --omit=optional && npx turbo run build --filter=@omsp/customer-web
+    buildCommand: corepack disable 2>/dev/null || true; NPM_CONFIG_PRODUCTION=false npm ci --omit=optional && npx turbo run build --filter=@omsp/customer-web
     startCommand: npm run start:web
     envVars:
       - key: NODE_VERSION
