@@ -40,6 +40,7 @@ async function bootstrap() {
   const port = Number(process.env.PORT ?? process.env.API_PORT ?? 4000);
   await app.listen(port, '0.0.0.0');
   console.log(`API running on http://0.0.0.0:${port}`);
+  console.log('Library setup unlock: POST /api/v1/library/setup/unlock');
 }
 
 bootstrap();
