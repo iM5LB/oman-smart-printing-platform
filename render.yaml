@@ -57,6 +57,12 @@ services:
         sync: false
       - key: OTP_DEV_EXPOSE
         value: "false"
+      - key: STORAGE_LOCAL_PATH
+        value: /opt/render/project/src/apps/api/.data/uploads
+      - key: MAX_FILE_SIZE_BYTES
+        value: "52428800"
+      - key: SIGNED_URL_TTL_SECONDS
+        value: "300"
       - key: LIBRARY_SETUP_PASSWORD
         sync: false
       - key: API_URL
