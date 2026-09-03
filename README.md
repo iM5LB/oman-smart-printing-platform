@@ -131,6 +131,7 @@ End-to-end scenario that must work:
 - [WebSocket Protocol](docs/architecture/websocket-protocol.md)
 - [File Privacy](docs/architecture/file-privacy-lifecycle.md)
 - [Arabic UX Design](docs/architecture/arabic-ux-design.md)
+- [WhatsApp Cloud API OTP](docs/whatsapp-otp.md)
 
 ## License
 

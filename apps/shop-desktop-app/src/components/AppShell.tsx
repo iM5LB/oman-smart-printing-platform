@@ -1,7 +1,7 @@
 import { NavLink, useNavigate } from "react-router-dom";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useAuth } from "../lib/auth";
-import { getCustomerShopUrl, formatCleanUrl, shopApi } from "../lib/api";
+import { getCustomerShopUrl, shopApi } from "../lib/api";
 import {
   checkForUpdate,
   downloadAndInstallUpdate,
@@ -11,6 +11,7 @@ import {
 import { Icons } from "./icons";
 import { NotificationBell } from "./NotificationBell";
 import { ShopUrlQrDialog } from "./ShopUrlQrDialog";
+import { StoreBrandMark, storeInitials } from "./StoreBrandMark";
 import { useToast } from "./Toast";
 import { Button } from "./ui";
 
@@ -159,37 +160,30 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       <div className="relative flex min-h-0 min-w-0 flex-1">
         <aside className="z-10 flex w-[260px] shrink-0 flex-col border-e border-border-default bg-bg-surface">
-          <div className="relative z-20 flex items-center gap-3 px-4 py-5">
-            {me?.store.logo_url ? (
-              <img
-                src={me.store.logo_url}
-                alt=""
-                className="size-11 shrink-0 rounded-2xl border border-border-default object-cover shadow-[0_8px_24px_rgba(31,111,235,0.25)]"
-              />
-            ) : (
-              <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-primary text-section font-semibold text-white shadow-[0_8px_24px_rgba(31,111,235,0.35)]">
-                {(me?.store.name ?? "م").slice(0, 1)}
-              </div>
-            )}
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-title leading-tight">
-                {me?.store.name ?? "منصة الطباعة"}
-              </p>
-              {shopUrl ? (
-                <button
-                  type="button"
-                  onClick={() => setShopQrOpen(true)}
-                  className="mt-0.5 block max-w-full truncate text-start text-meta text-info underline-offset-2 hover:underline"
-                  dir="ltr"
-                  title="عرض رمز QR للمسح"
-                >
-                  {formatCleanUrl(shopUrl)}
-                </button>
+          <div
+            dir="rtl"
+            className="relative z-20 border-b border-border-default px-3 pb-3 pt-4"
+          >
+            {/* Brand at inline-start (right); bell at inline-end (left). One card = name + URL. */}
+            <div className="flex items-start gap-2">
+              {me?.store ? (
+                <div className="min-w-0 flex-1 rounded-xl border border-border-default/70 bg-bg-elevated/60 px-2.5 py-2">
+                  <StoreBrandMark
+                    name={me.store.name}
+                    logoUrl={me.store.logo_url}
+                    shopUrl={shopUrl}
+                    onShopUrlClick={
+                      shopUrl ? () => setShopQrOpen(true) : undefined
+                    }
+                    size="sm"
+                    className="min-w-0"
+                  />
+                </div>
               ) : (
-                <p className="truncate text-meta text-text-muted">سلطنة عُمان</p>
+                <div className="min-w-0 flex-1" />
               )}
+              <NotificationBell className="mt-1 shrink-0" />
             </div>
-            <NotificationBell className="shrink-0" />
           </div>
 
           <nav className="flex flex-1 flex-col gap-1.5 overflow-auto px-2.5 pb-3">
@@ -254,8 +248,11 @@ export function AppShell({ children }: { children: ReactNode }) {
               onClick={logout}
               className="flex w-full items-center gap-3 rounded-xl border border-border-default bg-bg-elevated px-3 py-2.5 text-start transition-colors hover:bg-bg-hover"
             >
-              <div className="flex size-9 items-center justify-center rounded-full bg-primary/20 text-meta font-semibold text-primary">
-                {(me?.device.name ?? me?.store.name ?? "م").slice(0, 1)}
+              <div
+                className="flex size-9 items-center justify-center rounded-full bg-primary/20 text-meta font-semibold text-primary"
+                dir="ltr"
+              >
+                {storeInitials(me?.device.name ?? me?.store.name ?? "م")}
               </div>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-body font-medium">

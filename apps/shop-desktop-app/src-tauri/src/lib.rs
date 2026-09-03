@@ -45,13 +45,31 @@ fn resolve_worker_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
         }
     }
 
-    // Dev: apps/print-worker/bin/Release/net8.0-windows/print-worker.exe
-    // relative to src-tauri cwd during `tauri dev`
-    let candidates = [
+    let mut candidates: Vec<PathBuf> = vec![
+        PathBuf::from("binaries/print-worker.exe"),
         PathBuf::from("../print-worker/bin/Release/net8.0-windows/print-worker.exe"),
         PathBuf::from("../../print-worker/bin/Release/net8.0-windows/print-worker.exe"),
-        PathBuf::from("binaries/print-worker.exe"),
     ];
+
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            candidates.push(dir.join("print-worker.exe"));
+            candidates.push(dir.join("binaries").join("print-worker.exe"));
+        }
+    }
+
+    if let Ok(resource) = app.path().resource_dir() {
+        candidates.push(resource.join("print-worker.exe"));
+        candidates.push(resource.join("binaries").join("print-worker.exe"));
+        candidates.push(
+            resource
+                .join("print-worker")
+                .join("bin")
+                .join("Release")
+                .join("net8.0-windows")
+                .join("print-worker.exe"),
+        );
+    }
 
     for c in &candidates {
         if c.exists() {
@@ -59,25 +77,8 @@ fn resolve_worker_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
         }
     }
 
-    if let Ok(resource) = app.path().resource_dir() {
-        let bundled = resource.join("print-worker.exe");
-        if bundled.exists() {
-            return Ok(bundled);
-        }
-        // Nested resource path from tauri.conf.json
-        let nested = resource
-            .join("print-worker")
-            .join("bin")
-            .join("Release")
-            .join("net8.0-windows")
-            .join("print-worker.exe");
-        if nested.exists() {
-            return Ok(nested);
-        }
-    }
-
     Err(
-        "لم يتم العثور على print-worker. شغّل: npm run worker:build --workspace=@omsp/shop-desktop-app"
+        "لم يتم العثور على print-worker. شغّل: npm run desktop:build"
             .into(),
     )
 }

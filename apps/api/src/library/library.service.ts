@@ -8,11 +8,12 @@ import {
 } from '@nestjs/common';
 import { createHmac, randomBytes, randomInt, timingSafeEqual } from 'crypto';
 import { PrismaClient } from '@omsp/database';
-import { isValidPhone, normalizePhone } from '@omsp/shared';
+import { getPhoneErrorMessageAr, isValidPhone, normalizePhone } from '@omsp/shared';
 import { PRISMA } from '../prisma/prisma.module';
 import { hashPassword, hashSha256, verifyPassword } from '../common/password';
 import { generateDeviceToken, hashDeviceToken } from '../websocket/shop.gateway';
 import { StorageService } from '../storage/storage.service';
+import { SmsService } from '../sms/sms.service';
 
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const OTP_TTL_MS = 5 * 60 * 1000;
@@ -53,6 +54,7 @@ export class LibraryService {
   constructor(
     @Inject(PRISMA) private readonly db: PrismaClient,
     private readonly storage: StorageService,
+    private readonly sms: SmsService,
   ) {}
 
   async unlockSetup(password: string) {
@@ -70,26 +72,18 @@ export class LibraryService {
 
   async register(input: {
     setup_token: string;
-    email: string;
-    password: string;
-    owner_name: string;
+    email?: string;
+    password?: string;
+    owner_name?: string;
     store_name: string;
     store_slug?: string;
     phone?: string;
   }) {
     this.assertSetupToken(input.setup_token);
 
-    const email = input.email.trim().toLowerCase();
-    if (!email.includes('@')) throw new BadRequestException('البريد الإلكتروني غير صالح');
-    if ((input.password ?? '').length < 8) {
-      throw new BadRequestException('كلمة مرور حساب الإدارة يجب أن تكون 8 أحرف على الأقل');
-    }
     if (!(input.store_name ?? '').trim()) throw new BadRequestException('اسم المكتبة مطلوب');
 
     try {
-      const existing = await this.db.user.findUnique({ where: { email } });
-      if (existing) throw new BadRequestException('هذا البريد مسجّل مسبقاً');
-
       let slug = slugify(input.store_slug || input.store_name);
       const slugTaken = await this.db.store.findUnique({
         where: { slug },
@@ -97,13 +91,34 @@ export class LibraryService {
       });
       if (slugTaken) slug = `${slug}-${randomBytes(2).toString('hex')}`;
 
+      const credentialsGenerated = !input.email?.trim() || !input.password;
+      const plainPassword =
+        input.password?.trim() || randomBytes(9).toString('base64url').slice(0, 12);
+      if (plainPassword.length < 8) {
+        throw new BadRequestException('كلمة مرور حساب الإدارة يجب أن تكون 8 أحرف على الأقل');
+      }
+
+      let email = (input.email?.trim() || `admin@${slug}.tibaa.local`).toLowerCase();
+      if (!email.includes('@')) throw new BadRequestException('البريد الإلكتروني غير صالح');
+
+      const existing = await this.db.user.findUnique({ where: { email } });
+      if (existing) {
+        if (credentialsGenerated) {
+          email = `admin-${randomBytes(2).toString('hex')}@${slug}.tibaa.local`;
+        } else {
+          throw new BadRequestException('هذا البريد مسجّل مسبقاً');
+        }
+      }
+
+      const ownerName =
+        input.owner_name?.trim() || input.store_name.trim() || 'مالك المكتبة';
       const phone = input.phone ? this.requirePhone(input.phone) : null;
 
       const user = await this.db.user.create({
         data: {
           email,
-          passwordHash: hashPassword(input.password),
-          name: input.owner_name.trim() || 'مالك المكتبة',
+          passwordHash: hashPassword(plainPassword),
+          name: ownerName,
           phone,
           storeUsers: {
             create: {
@@ -161,6 +176,15 @@ export class LibraryService {
         user: { id: user.id, email: user.email, name: user.name },
         store: this.mapStore(store),
         onboarding_complete: false,
+        ...(credentialsGenerated
+          ? {
+              initial_credentials: {
+                email: user.email,
+                password: plainPassword,
+                owner_name: user.name,
+              },
+            }
+          : {}),
       };
     } catch (err) {
       if (err instanceof BadRequestException || err instanceof UnauthorizedException) throw err;
@@ -475,7 +499,7 @@ export class LibraryService {
         created_at: device.createdAt.toISOString(),
       },
       device_token: deviceToken,
-      message: 'احفظ الرمز الآن — لن يظهر مرة أخرى. أو اربط الجهاز بكلمة المرور ورمز SMS.',
+      message: 'احفظ الرمز الآن — لن يظهر مرة أخرى. أو اربط الجهاز بكلمة المرور ورمز التحقق.',
     };
   }
 
@@ -542,14 +566,7 @@ export class LibraryService {
       },
     });
 
-    const message = `رمز ربط جهاز المكتبة: ${code} (صالح 5 دقائق)`;
-    console.log(`[SMS mock] Device pairing to ${store.deviceConfirmPhone}: ${message}`);
-
-    const smsProvider = (process.env.SMS_PROVIDER ?? 'mock').toLowerCase();
-    const exposeCode =
-      smsProvider === 'mock' ||
-      process.env.NODE_ENV !== 'production' ||
-      process.env.OTP_DEV_EXPOSE === 'true';
+    await this.sms.sendOtp(store.deviceConfirmPhone, code, 'device_pairing');
 
     const response: {
       challenge_id: string;
@@ -561,10 +578,10 @@ export class LibraryService {
       challenge_id: challenge.id,
       phone_hint: this.maskPhone(store.deviceConfirmPhone),
       expires_in_seconds: Math.floor(OTP_TTL_MS / 1000),
-      message: 'تم إرسال رمز التأكيد إلى رقم هاتف المكتبة المسجّل في الموقع',
+      message: this.sms.otpSentMessage('device_pairing'),
     };
 
-    if (exposeCode) {
+    if (this.sms.shouldExposeDevCode()) {
       response.dev_code = code;
     }
 
@@ -845,8 +862,11 @@ export class LibraryService {
   }
 
   private requirePhone(phoneRaw: string): string {
-    if (!isValidPhone(phoneRaw)) {
-      throw new BadRequestException('رقم الهاتف غير صالح');
+    const message = getPhoneErrorMessageAr(phoneRaw, { required: true });
+    if (message || !isValidPhone(phoneRaw)) {
+      throw new BadRequestException(
+        message ?? 'رقم الهاتف غير صالح. اختر الدولة وأدخل الرقم بشكل صحيح',
+      );
     }
     return normalizePhone(phoneRaw)!;
   }

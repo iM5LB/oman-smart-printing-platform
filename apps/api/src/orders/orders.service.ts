@@ -14,6 +14,7 @@ import {
   countPagesInRange,
   formatOMR,
   generateTrackingToken,
+  getPhoneErrorMessageAr,
   isValidPhone,
   normalizePhone,
 } from '@omsp/shared';
@@ -63,9 +64,10 @@ export class OrdersService {
     }
 
     const phone = normalizePhone(dto.customer_phone);
-    if (!phone || !isValidPhone(dto.customer_phone)) {
+    const phoneError = getPhoneErrorMessageAr(dto.customer_phone, { required: true });
+    if (!phone || phoneError || !isValidPhone(dto.customer_phone)) {
       throw new BadRequestException(
-        'رقم الهاتف غير صالح. أدخل رقماً مثل 91234567 أو +96891234567 أو +9715XXXXXXX',
+        phoneError ?? 'رقم الهاتف غير صالح. اختر الدولة وأدخل الرقم بشكل صحيح',
       );
     }
 

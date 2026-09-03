@@ -19,6 +19,7 @@ import {
   pickupPolicyAr,
   queuePriorityAr,
 } from "../lib/labels";
+import { StoreBrandMark } from "../components/StoreBrandMark";
 
 const APP_VERSION = "v0.1.0";
 
@@ -38,18 +39,30 @@ function Field({
   dir?: "ltr" | "rtl";
   icon?: ReactNode;
 }) {
+  // Keep the row RTL (icon + label on the right). Only isolate LTR *inside*
+  // the value so URLs / phones don't flip the flex order.
+  const value =
+    dir === "ltr" ? (
+      <span className="unicode-bidi-isolate inline-block max-w-full truncate" dir="ltr">
+        {children}
+      </span>
+    ) : (
+      children
+    );
+
   return (
-    <div className="flex items-center gap-2 border-b border-border-default/50 px-3 py-2 last:border-b-0">
-      {icon ? (
-        <span className="shrink-0 text-primary/70">{icon}</span>
-      ) : null}
-      <p className="shrink-0 text-meta text-text-muted">{label}</p>
+    <div className="flex items-center justify-between gap-3 border-b border-border-default/50 px-3 py-2 last:border-b-0">
+      <div className="flex min-w-0 items-center gap-2">
+        {icon ? (
+          <span className="shrink-0 text-primary/70">{icon}</span>
+        ) : null}
+        <p className="shrink-0 text-meta text-text-muted">{label}</p>
+      </div>
       <div
-        className="min-w-0 flex-1 truncate text-end text-body font-medium text-text-primary"
-        dir={dir}
+        className="min-w-0 max-w-[65%] truncate text-start text-body font-medium text-text-primary"
         title={typeof children === "string" ? children : undefined}
       >
-        {children}
+        {value}
       </div>
     </div>
   );
@@ -273,35 +286,14 @@ export function SettingsPage() {
           />
 
           <div className="flex items-center gap-3 border-b border-border-default bg-gradient-to-l from-primary/15 to-transparent px-3 py-3">
-            {store?.logo_url ? (
-              <img
-                src={store.logo_url}
-                alt=""
-                className="size-11 shrink-0 rounded-2xl border border-border-default object-cover shadow-[0_8px_24px_rgba(31,111,235,0.25)]"
-              />
-            ) : (
-              <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-primary text-section font-semibold text-white shadow-[0_8px_24px_rgba(31,111,235,0.35)]">
-                {(store?.name ?? "م").slice(0, 1)}
-              </div>
-            )}
-            <div className="min-w-0">
-              <p className="truncate text-title leading-tight">{dash(store?.name)}</p>
-              {shopUrl ? (
-                <button
-                  type="button"
-                  onClick={() => setShopQrOpen(true)}
-                  className="mt-0.5 block max-w-full truncate text-start text-meta text-info underline-offset-2 hover:underline"
-                  dir="ltr"
-                  title="عرض رمز QR للمسح"
-                >
-                  {formatCleanUrl(shopUrl)}
-                </button>
-              ) : (
-                <p className="truncate text-meta text-text-muted" dir="ltr">
-                  /{dash(store?.slug)}
-                </p>
-              )}
-            </div>
+            <StoreBrandMark
+              name={store?.name ?? "المكتبة"}
+              logoUrl={store?.logo_url}
+              shopUrl={shopUrl}
+              onShopUrlClick={shopUrl ? () => setShopQrOpen(true) : undefined}
+              size="sm"
+              className="min-w-0 flex-1"
+            />
             <span
               className={`ms-auto inline-flex shrink-0 items-center gap-1 rounded-full border px-1.5 py-0.5 text-[11px] font-medium ${
                 online
@@ -338,13 +330,13 @@ export function SettingsPage() {
                 <button
                   type="button"
                   onClick={() => setShopQrOpen(true)}
-                  className="truncate text-meta text-info underline-offset-2 hover:underline"
+                  className="max-w-full truncate text-start text-info underline-offset-2 hover:underline"
                   title="عرض رمز QR للمسح"
                 >
                   {formatCleanUrl(shopUrl)}
                 </button>
               ) : (
-                <span className="text-meta text-info">
+                <span className="text-info">
                   {store?.customer_shop_path ?? "—"}
                 </span>
               )}
@@ -485,7 +477,9 @@ export function SettingsPage() {
                 : "—"}
             </Field>
             <Field label="الخادم" icon={Icons.refresh({ size: 13 })} dir="ltr">
-              <span className="text-meta text-info">{getApiBase()}</span>
+              <span className="text-meta text-info" title={getApiBase()}>
+                {getApiBase()}
+              </span>
             </Field>
             {store?.order_number_prefix ? (
               <Field label="بادئة الطلب" icon={Icons.tag({ size: 13 })}>

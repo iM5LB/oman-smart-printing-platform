@@ -67,20 +67,99 @@ export async function unlockLibrarySetup(password: string) {
   );
 }
 
-export async function registerLibrary(data: {
-  setup_token: string;
+export interface InitialCredentials {
   email: string;
   password: string;
   owner_name: string;
+}
+
+export async function registerLibrary(data: {
+  setup_token: string;
   store_name: string;
   store_slug?: string;
   phone?: string;
+  email?: string;
+  password?: string;
+  owner_name?: string;
 }) {
   return libraryFetch<{
     token: string;
     store: LibraryStore;
     onboarding_complete: boolean;
+    initial_credentials?: InitialCredentials;
   }>('/library/auth/register', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export interface LibraryStats {
+  today_orders: number;
+  today_revenue_baisa: number;
+  today_revenue_display: string;
+  yesterday_orders: number;
+  yesterday_revenue_display: string;
+  orders_delta_percent: number;
+  week_orders: number;
+  week_revenue_display: string;
+  printing_count: number;
+  ready_count: number;
+}
+
+export interface LibraryOrder {
+  id: string;
+  order_number?: string;
+  display_number?: string;
+  status: string;
+  customer_name?: string | null;
+  customer_phone?: string | null;
+  total_display?: string;
+  created_at: string;
+  items?: Array<{ color_mode?: string }>;
+}
+
+export interface PricingRule {
+  id: string;
+  paper_size: string;
+  color_mode: string;
+  price_per_page: number;
+  price_display: string;
+  is_active: boolean;
+}
+
+export interface FinishingService {
+  id: string;
+  name_ar: string;
+  description: string | null;
+  price_baisa: number;
+  price_display: string;
+  is_active: boolean;
+}
+
+export async function fetchLibraryStats() {
+  return libraryFetch<LibraryStats>('/library/stats');
+}
+
+export async function fetchLibraryOrders(status?: string) {
+  const q = status ? `?status=${encodeURIComponent(status)}` : '';
+  return libraryFetch<LibraryOrder[]>(`/library/orders${q}`);
+}
+
+export async function fetchLibraryPricing() {
+  return libraryFetch<{ rules: PricingRule[]; finishing: FinishingService[] }>(
+    '/library/pricing',
+  );
+}
+
+export async function updateLibraryPricingRule(ruleId: string, price_per_page: number) {
+  return libraryFetch<PricingRule>(`/library/pricing/rules/${ruleId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ price_per_page }),
+  });
+}
+
+export async function updateLibraryFinishing(serviceId: string, price_baisa: number) {
+  return libraryFetch<FinishingService>(`/library/pricing/finishing/${serviceId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ price_baisa }),
+  });
 }
 
 export async function loginLibrary(email: string, password: string) {

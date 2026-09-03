@@ -145,7 +145,9 @@ export function PickupPage() {
                   </p>
                   <p className="text-meta text-text-muted">
                     {o.customer_name || "—"} ·{" "}
-                    <span dir="ltr">{o.customer_phone}</span>
+                    <span className="unicode-bidi-isolate" dir="ltr">
+                      {o.customer_phone}
+                    </span>
                   </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">

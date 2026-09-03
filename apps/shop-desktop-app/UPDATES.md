@@ -55,7 +55,7 @@ git tag v0.1.1
 git push origin v0.1.1
 ```
 
-4. Workflow `.github/workflows/release-desktop.yml` builds print-worker + Tauri NSIS on `windows-latest`, then creates a GitHub Release with `latest.json` (`includeUpdaterJson: true`).
+4. Workflow `.github/workflows/release-desktop.yml` builds a self-contained print-worker + Tauri NSIS on `windows-latest`, then creates a GitHub Release with `latest.json` (`includeUpdaterJson: true`). Local `npm run desktop:build` skips updater signing unless `TAURI_SIGNING_PRIVATE_KEY` is set.
 
 You can also run the workflow manually via **Actions → Release desktop → Run workflow**.
 

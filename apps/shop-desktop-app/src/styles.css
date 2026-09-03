@@ -187,6 +187,12 @@ body {
   animation: progress-indeterminate 1.35s ease-in-out infinite;
 }
 
+/* Phones / URLs in RTL UI — isolate LTR runs without flipping row order */
+.unicode-bidi-isolate {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-fade-up,
   .animate-pulse-dot,

@@ -7,6 +7,8 @@ const DEV_DEVICE_TOKEN = 'dev-al-noor-device-token-change-in-production';
 const DEV_OWNER_EMAIL = 'owner@al-noor.om';
 const DEV_OWNER_PASSWORD = 'admin1234';
 const DEV_DEVICE_PASSWORD = 'device123';
+/** Demo store / device-pairing WhatsApp (business line). Customer login OTPs still go to each customer. */
+const DEV_STORE_PHONE = '+96876655365';
 
 function hashPassword(password: string): string {
   const salt = randomBytes(16).toString('hex');
@@ -19,20 +21,20 @@ async function main() {
     where: { slug: 'al-noor' },
     update: {
       name: 'مكتبة النور',
-      phone: '+96891234567',
+      phone: DEV_STORE_PHONE,
       governorate: 'مسقط',
       wilayat: 'بوشر',
       address: 'شارع السلطان قابوس',
       latitude: 23.5888,
       longitude: 58.4078,
       devicePasswordHash: hashPassword(DEV_DEVICE_PASSWORD),
-      deviceConfirmPhone: '+96891234567',
+      deviceConfirmPhone: DEV_STORE_PHONE,
       onboardingCompletedAt: new Date(),
     },
     create: {
       slug: 'al-noor',
       name: 'مكتبة النور',
-      phone: '+96891234567',
+      phone: DEV_STORE_PHONE,
       governorate: 'مسقط',
       wilayat: 'بوشر',
       address: 'شارع السلطان قابوس',
@@ -40,7 +42,7 @@ async function main() {
       longitude: 58.4078,
       orderNumberPrefix: '#',
       devicePasswordHash: hashPassword(DEV_DEVICE_PASSWORD),
-      deviceConfirmPhone: '+96891234567',
+      deviceConfirmPhone: DEV_STORE_PHONE,
       onboardingCompletedAt: new Date(),
       openingHours: {
         create: [
@@ -109,7 +111,7 @@ async function main() {
   console.log(`Seeded store: ${store.name} (${store.slug})`);
   console.log(`Dev device token: ${DEV_DEVICE_TOKEN}`);
   console.log(`Library owner: ${DEV_OWNER_EMAIL} / ${DEV_OWNER_PASSWORD}`);
-  console.log(`Device password: ${DEV_DEVICE_PASSWORD} (OTP → ${store.deviceConfirmPhone ?? '+96891234567'})`);
+  console.log(`Device password: ${DEV_DEVICE_PASSWORD} (OTP → ${store.deviceConfirmPhone ?? DEV_STORE_PHONE})`);
 }
 
 main()

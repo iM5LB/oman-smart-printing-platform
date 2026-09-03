@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { BookOpen, ClipboardList, DoorOpen, UserRound } from 'lucide-react';
+import { ClipboardList, DoorOpen, UserRound } from 'lucide-react';
 import type { StorePublicInfo } from '@omsp/types';
 import { CustomerAuthPanel } from '@/components/customer-auth-panel';
 import {
@@ -13,6 +13,13 @@ import {
 import { logoutCustomer } from '@/lib/api';
 
 type AuthView = 'login' | 'orders' | null;
+
+function storeInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return 'م';
+  if (parts.length === 1) return parts[0].slice(0, 2);
+  return `${parts[0].slice(0, 1)}${parts[1].slice(0, 1)}`;
+}
 
 export function StoreNavbar({ store }: { store: StorePublicInfo }) {
   const [authView, setAuthView] = useState<AuthView>(null);
@@ -78,11 +85,14 @@ export function StoreNavbar({ store }: { store: StorePublicInfo }) {
             <img
               src={store.logo_url}
               alt=""
-              className="size-9 shrink-0 rounded-xl border border-border object-cover"
+              className="size-9 shrink-0 rounded-xl border border-border bg-white object-contain p-0.5"
             />
           ) : (
-            <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary text-white">
-              <BookOpen className="size-5" />
+            <div
+              className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-border bg-primary/15 text-xs font-bold text-primary"
+              aria-hidden
+            >
+              {storeInitials(store.name)}
             </div>
           )}
           <h1 className="truncate text-sm font-bold text-text sm:text-base">{store.name}</h1>
@@ -103,7 +113,7 @@ export function StoreNavbar({ store }: { store: StorePublicInfo }) {
           {menuOpen && loggedIn && (
             <div className="account-dropdown" role="menu">
               {phone && (
-                <div className="account-dropdown-phone" dir="ltr">
+                <div className="account-dropdown-phone unicode-bidi-isolate" dir="ltr">
                   {phone}
                 </div>
               )}

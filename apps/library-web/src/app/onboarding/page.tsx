@@ -5,11 +5,16 @@ import { useRouter } from 'next/navigation';
 import {
   completeOnboarding,
   fetchMe,
+  formatCleanUrl,
+  getCustomerShopBase,
   MeResponse,
   setDeviceSecurity,
   updateStore,
 } from '@/lib/api';
 import { clearLibraryToken, getLibraryToken } from '@/lib/session';
+import { TIBAA } from '@/lib/brand';
+import { TibaaBrand } from '@/components/tibaa-brand';
+import { PhoneInput } from '@/components/phone-input';
 
 type Step = 'profile' | 'location' | 'device' | 'review';
 
@@ -144,8 +149,16 @@ export default function OnboardingPage() {
     <div className="shell min-h-dvh px-4 py-8">
       <div className="mx-auto w-full max-w-2xl animate-fade-in-up">
         <header className="mb-8">
-          <p className="text-xs font-semibold text-gold">إعداد المكتبة</p>
-          <h1 className="mt-1 text-2xl font-bold text-primary">{me.store.name}</h1>
+          <div className="mb-3 flex items-center gap-3">
+            <TibaaBrand variant="icon" size="sm" />
+            <div>
+              <p className="text-base font-extrabold text-text-primary">
+                {TIBAA.nameAr} · {TIBAA.nameEn}
+              </p>
+              <p className="text-xs font-semibold text-info">إعداد المكتبة</p>
+            </div>
+          </div>
+          <h1 className="mt-1 text-2xl font-bold text-text-primary">{me.store.name}</h1>
           <p className="mt-1 text-sm text-text-muted">
             هذه الخطوات للمكتبة فقط. تطبيق سطح المكتب أداة تشغيل بعد الربط.
           </p>
@@ -157,10 +170,10 @@ export default function OnboardingPage() {
               key={s.id}
               className={`rounded-xl border px-3 py-2 text-sm ${
                 i === stepIndex
-                  ? 'border-primary bg-accent text-primary'
+                  ? 'border-primary bg-primary/20 text-text-primary'
                   : i < stepIndex
-                    ? 'border-primary/30 bg-surface text-primary'
-                    : 'border-border bg-surface text-text-muted'
+                    ? 'border-primary/30 bg-bg-surface text-text-primary'
+                    : 'border-border-default bg-bg-surface text-text-muted'
               }`}
             >
               <span className="block font-semibold">{s.title}</span>
@@ -189,19 +202,22 @@ export default function OnboardingPage() {
                 <label className="label" htmlFor="phone">
                   هاتف التواصل
                 </label>
-                <input
+                <PhoneInput
                   id="phone"
                   name="phone"
-                  className="input-field"
-                  dir="ltr"
                   defaultValue={me.store.phone ?? ''}
-                  placeholder="+9689xxxxxxx"
+                  showError
                 />
               </div>
-              <p className="text-xs text-text-muted">
-                رابط العملاء: /{me.store.slug}
-              </p>
-              {error && <p className="text-sm text-error">{error}</p>}
+              <div className="rounded-xl border border-border-default bg-bg-elevated px-3 py-2">
+                <p className="truncate text-sm font-medium">{me.store.name}</p>
+                <p className="mt-0.5 truncate text-xs text-info" dir="ltr">
+                  {formatCleanUrl(
+                    `${getCustomerShopBase()}${me.store.customer_shop_path || `/${me.store.slug}`}`,
+                  )}
+                </p>
+              </div>
+              {error && <p className="text-sm text-danger">{error}</p>}
               <button type="submit" className="btn-primary" disabled={loading}>
                 حفظ ومتابعة
               </button>
@@ -288,7 +304,7 @@ export default function OnboardingPage() {
                   />
                 </div>
               </div>
-              {error && <p className="text-sm text-error">{error}</p>}
+              {error && <p className="text-sm text-danger">{error}</p>}
               <div className="flex flex-wrap gap-2">
                 <button type="button" className="btn-ghost" onClick={() => setStep('profile')}>
                   رجوع
@@ -340,17 +356,15 @@ export default function OnboardingPage() {
                 <label className="label" htmlFor="device_confirm_phone">
                   رقم استلام رمز التأكيد عند الربط
                 </label>
-                <input
+                <PhoneInput
                   id="device_confirm_phone"
                   name="device_confirm_phone"
-                  className="input-field"
                   required
-                  dir="ltr"
+                  showError
                   defaultValue={me.store.device_confirm_phone ?? me.store.phone ?? ''}
-                  placeholder="+9689xxxxxxx"
                 />
               </div>
-              {error && <p className="text-sm text-error">{error}</p>}
+              {error && <p className="text-sm text-danger">{error}</p>}
               <div className="flex flex-wrap gap-2">
                 <button type="button" className="btn-ghost" onClick={() => setStep('location')}>
                   رجوع
@@ -366,17 +380,18 @@ export default function OnboardingPage() {
             <div className="space-y-4">
               <h2 className="text-lg font-bold">مراجعة الإعداد</h2>
               <dl className="space-y-2 text-sm">
-                <div className="flex justify-between gap-4 border-b border-border py-2">
+                <div className="flex justify-between gap-4 border-b border-border-default py-2">
                   <dt className="text-text-muted">المكتبة</dt>
-                  <dd className="font-semibold">{me.store.name}</dd>
-                </div>
-                <div className="flex justify-between gap-4 border-b border-border py-2">
-                  <dt className="text-text-muted">المعرّف</dt>
-                  <dd className="font-mono" dir="ltr">
-                    {me.store.slug}
+                  <dd className="min-w-0 text-end">
+                    <p className="font-semibold">{me.store.name}</p>
+                    <p className="mt-0.5 truncate font-mono text-xs text-info" dir="ltr">
+                      {formatCleanUrl(
+                        `${getCustomerShopBase()}${me.store.customer_shop_path || `/${me.store.slug}`}`,
+                      )}
+                    </p>
                   </dd>
                 </div>
-                <div className="flex justify-between gap-4 border-b border-border py-2">
+                <div className="flex justify-between gap-4 border-b border-border-default py-2">
                   <dt className="text-text-muted">الموقع</dt>
                   <dd className="text-left font-semibold">
                     {[me.store.governorate, me.store.wilayat, me.store.address]
@@ -384,16 +399,18 @@ export default function OnboardingPage() {
                       .join(' · ')}
                   </dd>
                 </div>
-                <div className="flex justify-between gap-4 border-b border-border py-2">
+                <div className="flex justify-between gap-4 border-b border-border-default py-2">
                   <dt className="text-text-muted">كلمة مرور الجهاز</dt>
                   <dd>{me.store.has_device_password ? 'مضبوطة' : 'غير مضبوطة'}</dd>
                 </div>
                 <div className="flex justify-between gap-4 py-2">
                   <dt className="text-text-muted">رقم التأكيد</dt>
-                  <dd dir="ltr">{me.store.device_confirm_phone}</dd>
+                  <dd className="unicode-bidi-isolate" dir="ltr">
+                    {me.store.device_confirm_phone}
+                  </dd>
                 </div>
               </dl>
-              {error && <p className="text-sm text-error">{error}</p>}
+              {error && <p className="text-sm text-danger">{error}</p>}
               <div className="flex flex-wrap gap-2">
                 <button type="button" className="btn-ghost" onClick={() => setStep('device')}>
                   رجوع

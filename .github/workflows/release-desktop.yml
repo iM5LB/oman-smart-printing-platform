@@ -57,11 +57,16 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
-      - name: Build print-worker
+      - name: Publish self-contained print-worker
         run: |
-          dotnet build apps/print-worker/PrintWorker.csproj -c Release
-          if (-not (Test-Path "apps/print-worker/bin/Release/net8.0-windows/print-worker.exe")) {
-            throw "print-worker.exe missing after build"
+          $out = "apps/shop-desktop-app/src-tauri/binaries"
+          New-Item -ItemType Directory -Force -Path $out | Out-Null
+          dotnet publish apps/print-worker/PrintWorker.csproj -c Release -r win-x64 --self-contained true `
+            -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:EnableCompressionInSingleFile=true -p:DebugType=none -p:DebugSymbols=false `
+            -o $out
+          if (-not (Test-Path "$out/print-worker.exe")) {
+            throw "print-worker.exe missing after publish"
           }
 
       - name: Build Tauri app & publish GitHub Release
@@ -73,12 +78,13 @@ jobs:
         with:
           projectPath: apps/shop-desktop-app
           tagName: ${{ github.ref_name }}
-          releaseName: "Shop Desktop ${{ github.ref_name }}"
+          releaseName: "Tibaa Desktop ${{ github.ref_name }}"
           releaseBody: |
-            Windows desktop release for Oman Smart Printing Platform (library app).
+            Windows installer for Tibaa (طباعة) library desktop.
 
-            Install the NSIS setup, or let an existing install update via the in-app updater.
+            Download `Tibaa_*_x64-setup.exe` and run it. No admin account is required
+            (installs for the current Windows user). WebView2 is bundled if missing.
           releaseDraft: false
           prerelease: false
           includeUpdaterJson: true
-          args: --bundles nsis
+          args: --bundles nsis --config "{\"bundle\":{\"createUpdaterArtifacts\":true}}"

@@ -128,7 +128,7 @@ function Row({
   return (
     <div className="summary-row">
       <span className="summary-row-muted">{label}</span>
-      <span className="font-semibold" dir={dir}>
+      <span className={`font-semibold${dir === 'ltr' ? ' unicode-bidi-isolate' : ''}`} dir={dir}>
         {value}
       </span>
     </div>

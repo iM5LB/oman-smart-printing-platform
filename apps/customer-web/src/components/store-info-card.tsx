@@ -93,7 +93,11 @@ export function StoreInfoCard({
 
       <div className="store-info-meta">
         {store.phone && (
-          <a href={`tel:${store.phone}`} className="store-info-row store-info-phone-row" dir="ltr">
+          <a
+            href={`tel:${store.phone}`}
+            className="store-info-row store-info-phone-row unicode-bidi-isolate"
+            dir="ltr"
+          >
             <Phone className="store-info-icon" aria-hidden />
             <span>{store.phone}</span>
           </a>

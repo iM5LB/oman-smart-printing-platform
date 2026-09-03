@@ -32,7 +32,7 @@
     "dev:library": "npm run dev --workspace=@omsp/library-web",
     "db:push:prod": "npm run db:push:prod --workspace=@omsp/database",
     "desktop:dev": "node scripts/desktop-dev.mjs",
-    "desktop:build": "npm run worker:build --workspace=@omsp/shop-desktop-app && npm run tauri:build --workspace=@omsp/shop-desktop-app"
+    "desktop:build": "node scripts/desktop-build.mjs"
   },
   "devDependencies": {
     "turbo": "^2.5.0",

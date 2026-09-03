@@ -64,11 +64,14 @@ export function ShopUrlQrDialog({
         onClick={(e) => e.stopPropagation()}
       >
         <h2 id="shop-qr-title" className="text-title">
-          رابط العملاء
+          {storeName?.trim() || "رابط العملاء"}
         </h2>
-        {storeName ? (
-          <p className="mt-1 text-meta text-text-muted">{storeName}</p>
-        ) : null}
+        <p
+          className="mt-1 break-all text-meta text-info"
+          dir="ltr"
+        >
+          {formatCleanUrl(url)}
+        </p>
         <div className="mt-4 flex justify-center rounded-xl bg-white p-4">
           {dataUrl ? (
             <img src={dataUrl} alt="QR code" className="size-[240px]" />
@@ -78,13 +81,7 @@ export function ShopUrlQrDialog({
             </div>
           )}
         </div>
-        <p
-          className="mt-3 break-all text-center text-meta text-info"
-          dir="ltr"
-        >
-          {formatCleanUrl(url)}
-        </p>
-        <p className="mt-1 text-center text-caption text-text-muted">
+        <p className="mt-3 text-center text-caption text-text-muted">
           امسح الرمز لفتح صفحة المكتبة
         </p>
         <div className="mt-4 flex justify-end">

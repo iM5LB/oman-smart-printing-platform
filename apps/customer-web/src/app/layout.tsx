@@ -1,12 +1,19 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import { TIBAA } from '@/lib/brand';
 
 export const metadata: Metadata = {
-  title: 'اطبع ملفاتك بسهولة',
-  description: 'منصة الطباعة الذكية — ارفع ملفاتك واطبعها بسهولة',
+  title: `${TIBAA.nameAr} · ${TIBAA.nameEn}`,
+  description: TIBAA.taglineAr,
   icons: {
-    icon: [{ url: '/favicon.svg', type: 'image/svg+xml' }],
-    shortcut: '/favicon.svg',
+    icon: [
+      { url: '/favicon.ico?v=13', sizes: 'any' },
+      { url: '/favicon-32.png?v=13', type: 'image/png', sizes: '32x32' },
+      { url: '/favicon-16.png?v=13', type: 'image/png', sizes: '16x16' },
+      { url: '/brand/tibaa-icon.png?v=13', type: 'image/png', sizes: '512x512' },
+    ],
+    shortcut: '/favicon.ico?v=13',
+    apple: [{ url: '/apple-icon.png?v=13', sizes: '180x180', type: 'image/png' }],
   },
 };
 

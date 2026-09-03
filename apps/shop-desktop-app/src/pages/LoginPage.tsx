@@ -3,7 +3,7 @@ import { Navigate } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 import { shopApi } from "../lib/api";
 import { Button, Input, Panel } from "../components/ui";
-import { Icons } from "../components/icons";
+import { TibaaBrandMark } from "../components/TibaaBrandMark";
 
 type Step = "credentials" | "otp";
 
@@ -80,19 +80,19 @@ export function LoginPage() {
         }}
       />
       <Panel className="relative w-full max-w-md animate-fade-up p-6 shadow-none">
-        <div className="flex items-center gap-3">
-          <div className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-primary text-white shadow-[0_8px_24px_rgba(31,111,235,0.35)]">
-            {Icons.printer({ size: 22 })}
-          </div>
-          <div className="min-w-0">
-            <h1 className="truncate text-title leading-tight">منصة الطباعة</h1>
-            <p className="truncate text-meta text-text-muted">سلطنة عُمان</p>
-          </div>
-        </div>
+        <TibaaBrandMark size="lg" stacked showTagline />
         <p className="mt-4 text-body text-text-secondary">
-          {step === "credentials"
-            ? "استخدم معرّف المكتبة وكلمة مرور الجهاز كما ضبطتها في الموقع. سيُرسل رمز تأكيد إلى رقم هاتف العلامة التجارية."
-            : `أدخل الرمز المرسل إلى ${phoneHint ?? "رقم المكتبة"} لإكمال الربط.`}
+          {step === "credentials" ? (
+            "استخدم معرّف المكتبة وكلمة مرور الجهاز كما ضبطتها في الموقع. سيُرسل رمز تأكيد إلى رقم هاتف العلامة التجارية."
+          ) : (
+            <>
+              أدخل الرمز المرسل إلى{" "}
+              <span className="unicode-bidi-isolate font-medium" dir="ltr">
+                {phoneHint ?? "رقم المكتبة"}
+              </span>{" "}
+              لإكمال الربط.
+            </>
+          )}
         </p>
 
         {step === "credentials" ? (

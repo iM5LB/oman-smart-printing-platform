@@ -208,7 +208,7 @@ export function OrdersPage() {
                     </td>
                     <td className="px-3 py-2.5">
                       <div>{o.customer_name || "—"}</div>
-                      <div className="text-meta text-text-muted" dir="ltr">
+                      <div className="unicode-bidi-isolate text-meta text-text-muted" dir="ltr">
                         {o.customer_phone}
                       </div>
                     </td>

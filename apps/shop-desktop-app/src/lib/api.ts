@@ -60,6 +60,29 @@ export function formatCleanUrl(url: string | null | undefined): string {
     .replace(/\/+$/, "");
 }
 
+/**
+ * Absolute URL for a store logo image. Rejects platform Tibaa brand assets
+ * so logged-in chrome never shows the app icon as the shop mark.
+ */
+export function resolveStoreLogoUrl(
+  logoUrl: string | null | undefined,
+): string | null {
+  if (!logoUrl?.trim()) return null;
+  const u = logoUrl.trim();
+  if (/\/brand\/tibaa-/i.test(u) || /tibaa-(icon|logo)\.png/i.test(u)) {
+    return null;
+  }
+  if (
+    u.startsWith("http://") ||
+    u.startsWith("https://") ||
+    u.startsWith("data:")
+  ) {
+    return u;
+  }
+  if (u.startsWith("/")) return `${getApiBase()}${u}`;
+  return `${getApiBase()}/${u}`;
+}
+
 function apiUrl(): string {
   return `${getApiBase()}/api/v1`;
 }

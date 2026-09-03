@@ -1,6 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "عمان للطباعة — المكتبة",
+  "productName": "Tibaa",
+  "mainBinaryName": "Tibaa",
   "version": "0.1.0",
   "identifier": "om.smartprint.shopdesktop",
   "build": {
@@ -13,7 +14,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "عمان للطباعة — المكتبة",
+        "title": "طباعة — المكتبة",
         "width": 1280,
         "height": 800,
         "minWidth": 1024,
@@ -29,18 +30,36 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
-    "createUpdaterArtifacts": true,
-    "resources": [
-      "../../print-worker/bin/Release/net8.0-windows/print-worker.exe"
-    ],
+    "targets": ["nsis"],
+    "createUpdaterArtifacts": false,
+    "publisher": "Tibaa",
+    "copyright": "Copyright © Tibaa",
+    "category": "Business",
+    "shortDescription": "Tibaa library desktop",
+    "longDescription": "Tibaa — smart printing and document services for libraries.",
+    "resources": {
+      "binaries/print-worker.exe": "print-worker.exe"
+    },
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "windows": {
+      "webviewInstallMode": {
+        "type": "embedBootstrapper",
+        "silent": true
+      },
+      "nsis": {
+        "installMode": "currentUser",
+        "installerIcon": "icons/icon.ico",
+        "displayLanguageSelector": false,
+        "compression": "lzma",
+        "startMenuFolder": "Tibaa"
+      }
+    }
   },
   "plugins": {
     "updater": {

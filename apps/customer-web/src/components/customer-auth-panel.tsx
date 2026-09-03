@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ArrowRight, Package, X } from 'lucide-react';
+import { getPhoneErrorMessageAr } from '@omsp/shared';
 import { ORDER_STATUS_AR, PAYMENT_STATUS_AR } from '@omsp/types';
 import {
   fetchMyOrders,
@@ -11,6 +12,7 @@ import {
   verifyOtp,
   type MyOrder,
 } from '@/lib/api';
+import { PhoneInput } from '@/components/phone-input';
 import {
   clearCustomerSession,
   getCustomerPhone,
@@ -107,6 +109,11 @@ export function CustomerAuthPanel({
 
   async function handleSendCode(e: React.FormEvent) {
     e.preventDefault();
+    const phoneError = getPhoneErrorMessageAr(phone, { required: true });
+    if (phoneError) {
+      setError(phoneError);
+      return;
+    }
     setLoading(true);
     setError(null);
     setDevCode(null);
@@ -194,7 +201,7 @@ export function CustomerAuthPanel({
           )}
           <div className="flex items-center gap-2">
             {mode === 'orders' && !selected && sessionPhone && (
-              <span className="text-xs text-text-muted" dir="ltr">
+              <span className="unicode-bidi-isolate text-xs text-text-muted" dir="ltr">
                 {sessionPhone}
               </span>
             )}
@@ -212,18 +219,18 @@ export function CustomerAuthPanel({
               </p>
               <label className="block">
                 <span className="option-label">رقم الهاتف</span>
-                <input
-                  className="input-field"
-                  dir="ltr"
-                  inputMode="tel"
-                  autoComplete="tel"
-                  placeholder="+968 9XXXXXXX أو رقم دولي"
+                <PhoneInput
                   value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
+                  onChange={(next) => {
+                    setPhone(next);
+                    setError(null);
+                  }}
                   required
+                  showError
+                  error={error}
+                  autoComplete="tel"
                 />
               </label>
-              {error && <p className="text-sm text-error">{error}</p>}
               <button type="submit" className="btn-primary w-full" disabled={loading}>
                 {loading ? 'جاري الإرسال...' : 'إرسال رمز التحقق'}
               </button>
@@ -234,7 +241,7 @@ export function CustomerAuthPanel({
             <form onSubmit={handleVerify} className="space-y-4">
               <p className="text-sm text-text-muted">
                 أدخل الرمز المرسل إلى{' '}
-                <span className="font-semibold text-text" dir="ltr">
+                <span className="unicode-bidi-isolate font-semibold text-text" dir="ltr">
                   {phone}
                 </span>
               </p>

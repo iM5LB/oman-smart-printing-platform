@@ -89,7 +89,7 @@ export function CustomersPage() {
                     className="border-b border-border-default/60 hover:bg-bg-hover/40"
                   >
                     <td className="px-3.5 py-2.5 font-medium">{c.name}</td>
-                    <td className="px-3.5 py-2.5" dir="ltr">
+                    <td className="unicode-bidi-isolate px-3.5 py-2.5" dir="ltr">
                       {c.phone}
                     </td>
                     <td className="px-3.5 py-2.5 tabular-nums">{c.order_count}</td>

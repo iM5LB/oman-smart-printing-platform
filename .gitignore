@@ -72,6 +72,11 @@ apps/print-worker/**/*.exe
 apps/print-worker/**/*.dll
 apps/print-worker/**/*.pdb
 
+# Tauri / desktop release artifacts
+apps/shop-desktop-app/src-tauri/target/
+apps/shop-desktop-app/src-tauri/binaries/
+apps/shop-desktop-app/src-tauri/gen/
+
 # Accidental tsc emit into src/
 packages/database/src/**/*.js
 packages/database/src/**/*.d.ts

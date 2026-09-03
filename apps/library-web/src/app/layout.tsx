@@ -1,11 +1,19 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import { TIBAA } from '@/lib/brand';
 
 export const metadata: Metadata = {
-  title: 'لوحة المكتبة — منصة الطباعة',
-  description: 'إعداد المكتبة وربط أجهزة الطباعة',
+  title: `لوحة المكتبة — ${TIBAA.nameAr}`,
+  description: TIBAA.taglineAr,
   icons: {
-    icon: [{ url: '/favicon.svg', type: 'image/svg+xml' }],
+    icon: [
+      { url: '/favicon.ico?v=13', sizes: 'any' },
+      { url: '/favicon-32.png?v=13', type: 'image/png', sizes: '32x32' },
+      { url: '/favicon-16.png?v=13', type: 'image/png', sizes: '16x16' },
+      { url: '/brand/tibaa-icon.png?v=13', type: 'image/png', sizes: '512x512' },
+    ],
+    shortcut: '/favicon.ico?v=13',
+    apple: [{ url: '/apple-icon.png?v=13', sizes: '180x180', type: 'image/png' }],
   },
 };
 
@@ -18,7 +26,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           rel="stylesheet"
         />
       </head>
-      <body className="min-h-full bg-background text-text font-sans antialiased">{children}</body>
+      <body className="min-h-full bg-bg-base text-text-primary font-sans antialiased">{children}</body>
     </html>
   );
 }

@@ -9,9 +9,10 @@ import {
 } from 'lucide-react';
 import type { StorePublicInfo } from '@omsp/types';
 import { COLOR_MODE_AR, PAPER_SIZE_AR, PRINT_SIDES_AR } from '@omsp/types';
-import { formatOMR } from '@omsp/shared';
+import { formatOMR, getPhoneErrorMessageAr } from '@omsp/shared';
 import { FileUploadZone } from '@/components/file-upload-zone';
 import type { Step } from '@/components/order-flow-types';
+import { PhoneInput } from '@/components/phone-input';
 import { StepIndicator } from '@/components/step-indicator';
 import { StatusTimeline } from '@/components/status-timeline';
 import { StoreFooter } from '@/components/store-footer';
@@ -139,6 +140,11 @@ export function OrderFlow({ store }: OrderFlowProps) {
   };
 
   const handleSubmit = async () => {
+    const phoneError = getPhoneErrorMessageAr(customerPhone, { required: true });
+    if (phoneError) {
+      setSubmitError(phoneError);
+      return;
+    }
     setSubmitting(true);
     setSubmitError(null);
     try {
@@ -179,6 +185,15 @@ export function OrderFlow({ store }: OrderFlowProps) {
           {step === 'landing' && (
             <div className="landing-layout animate-fade-in-up">
               <div className="landing-hero">
+                <div className="mb-3 flex justify-center">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src="/brand/tibaa-icon.png?v=13"
+                    alt="طباعة"
+                    className="size-16 rounded-2xl bg-white object-contain p-1 ring-1 ring-black/5"
+                  />
+                </div>
+                <p className="mb-1 text-sm font-bold text-[#2E8B7C]">طباعة · Tibaa</p>
                 <h2 className="landing-title">اطبع ملفاتك بسهولة</h2>
                 <p className="landing-sub">ارفع ملفاتك واطلب الطباعة قبل وصولك للمكتبة</p>
               </div>
@@ -330,13 +345,15 @@ export function OrderFlow({ store }: OrderFlowProps) {
                 </label>
                 <label className="block">
                   <span className="option-label">رقم الهاتف</span>
-                  <input
-                    className="input-field"
-                    dir="ltr"
+                  <PhoneInput
                     value={customerPhone}
-                    onChange={(e) => setCustomerPhone(e.target.value)}
-                    placeholder="+968 9XXXXXXX أو رقم دولي"
+                    onChange={(next) => {
+                      setCustomerPhone(next);
+                      setSubmitError(null);
+                    }}
                     required
+                    showError
+                    autoComplete="tel"
                   />
                 </label>
               </div>

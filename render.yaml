@@ -39,8 +39,23 @@ services:
         value: 7d
       - key: PAYMENT_PROVIDER
         value: mock
+      # OTP: keep mock until WhatsApp Cloud API is configured (docs/whatsapp-otp.md).
+      # Register +96876655365 in Meta WhatsApp Manager, then set SMS_PROVIDER=whatsapp
+      # and paste Phone number ID (not the MSISDN) into WHATSAPP_PHONE_NUMBER_ID.
       - key: SMS_PROVIDER
         value: mock
+      - key: WHATSAPP_BUSINESS_NUMBER
+        value: "+96876655365"
+      - key: WHATSAPP_TOKEN
+        sync: false
+      - key: WHATSAPP_PHONE_NUMBER_ID
+        sync: false
+      - key: WHATSAPP_OTP_TEMPLATE_NAME
+        sync: false
+      - key: WHATSAPP_OTP_TEMPLATE_LANG
+        value: ar
+      - key: WHATSAPP_ORDER_READY_TEMPLATE_NAME
+        sync: false
       - key: STORAGE_LOCAL_PATH
         value: /opt/render/project/src/apps/api/.data/uploads
       - key: MAX_FILE_SIZE_BYTES

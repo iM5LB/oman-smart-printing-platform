@@ -7,10 +7,14 @@ import {
   Patch,
   Post,
   Put,
+  Query,
+  Req,
   UploadedFile,
+  UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import type { Request } from 'express';
 import {
   IsEmail,
   IsNumber,
@@ -20,6 +24,8 @@ import {
   ValidateIf,
 } from 'class-validator';
 import { LibraryService } from './library.service';
+import { LIBRARY_OWNER_KEY, LibraryAuthGuard } from './library-auth.guard';
+import { ShopService } from '../shop/shop.service';
 
 class UnlockSetupDto {
   @IsString()
@@ -32,16 +38,21 @@ class RegisterDto {
   @MinLength(20)
   setup_token!: string;
 
+  /** Optional — auto-generated when omitted during setup wizard. */
+  @IsOptional()
   @IsEmail()
-  email!: string;
+  email?: string;
 
+  /** Optional — auto-generated when omitted during setup wizard. */
+  @IsOptional()
   @IsString()
   @MinLength(8)
-  password!: string;
+  password?: string;
 
+  @IsOptional()
   @IsString()
   @MinLength(2)
-  owner_name!: string;
+  owner_name?: string;
 
   @IsString()
   @MinLength(2)
@@ -54,6 +65,24 @@ class RegisterDto {
   @IsOptional()
   @IsString()
   phone?: string;
+}
+
+class UpdatePricingRuleDto {
+  @IsNumber()
+  price_per_page!: number;
+}
+
+class UpdateFinishingDto {
+  @IsNumber()
+  price_baisa!: number;
+}
+
+interface LibraryOwnerRequest extends Request {
+  [LIBRARY_OWNER_KEY]: {
+    store: { id: string };
+    user: { id: string };
+    role: string;
+  };
 }
 
 class LoginDto {
@@ -119,7 +148,10 @@ class CreateDeviceDto {
 
 @Controller('library')
 export class LibraryController {
-  constructor(private readonly library: LibraryService) {}
+  constructor(
+    private readonly library: LibraryService,
+    private readonly shop: ShopService,
+  ) {}
 
   @Post('setup/unlock')
   unlockSetup(@Body() dto: UnlockSetupDto) {
@@ -233,5 +265,63 @@ export class LibraryController {
       ? authorization.slice(7).trim()
       : undefined;
     return this.library.rotateDevice(token, id);
+  }
+
+  @Get('stats')
+  @UseGuards(LibraryAuthGuard)
+  stats(@Req() req: LibraryOwnerRequest) {
+    return this.shop.getStats(req[LIBRARY_OWNER_KEY].store.id);
+  }
+
+  @Get('orders')
+  @UseGuards(LibraryAuthGuard)
+  orders(@Req() req: LibraryOwnerRequest, @Query('status') status?: string) {
+    return this.shop.listOrders(req[LIBRARY_OWNER_KEY].store.id, status);
+  }
+
+  @Get('payments')
+  @UseGuards(LibraryAuthGuard)
+  payments(@Req() req: LibraryOwnerRequest) {
+    return this.shop.listPayments(req[LIBRARY_OWNER_KEY].store.id);
+  }
+
+  @Get('customers')
+  @UseGuards(LibraryAuthGuard)
+  customers(@Req() req: LibraryOwnerRequest) {
+    return this.shop.listCustomers(req[LIBRARY_OWNER_KEY].store.id);
+  }
+
+  @Get('pricing')
+  @UseGuards(LibraryAuthGuard)
+  pricing(@Req() req: LibraryOwnerRequest) {
+    return this.shop.getPricing(req[LIBRARY_OWNER_KEY].store.id);
+  }
+
+  @Patch('pricing/rules/:ruleId')
+  @UseGuards(LibraryAuthGuard)
+  updatePricingRule(
+    @Req() req: LibraryOwnerRequest,
+    @Param('ruleId') ruleId: string,
+    @Body() dto: UpdatePricingRuleDto,
+  ) {
+    return this.shop.updatePricingRule(
+      req[LIBRARY_OWNER_KEY].store.id,
+      ruleId,
+      dto.price_per_page,
+    );
+  }
+
+  @Patch('pricing/finishing/:serviceId')
+  @UseGuards(LibraryAuthGuard)
+  updateFinishing(
+    @Req() req: LibraryOwnerRequest,
+    @Param('serviceId') serviceId: string,
+    @Body() dto: UpdateFinishingDto,
+  ) {
+    return this.shop.updateFinishing(
+      req[LIBRARY_OWNER_KEY].store.id,
+      serviceId,
+      dto.price_baisa,
+    );
   }
 }

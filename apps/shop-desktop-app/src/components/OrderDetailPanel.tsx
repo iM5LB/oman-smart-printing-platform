@@ -131,7 +131,7 @@ export function OrderDetailPanel({
           <DetailRow icon={Icons.phone({ size: 15 })} label="الهاتف">
             <a
               href={order.customer_phone ? `tel:${order.customer_phone}` : undefined}
-              className="truncate text-primary"
+              className="unicode-bidi-isolate truncate text-primary"
               dir="ltr"
             >
               {order.customer_phone || "—"}

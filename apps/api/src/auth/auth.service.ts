@@ -7,8 +7,9 @@ import {
 } from '@nestjs/common';
 import { createHash, randomBytes, randomInt } from 'crypto';
 import { PrismaClient } from '@omsp/database';
-import { formatOMR, isValidPhone, normalizePhone } from '@omsp/shared';
+import { formatOMR, getPhoneErrorMessageAr, isValidPhone, normalizePhone } from '@omsp/shared';
 import { PRISMA } from '../prisma/prisma.module';
+import { SmsService } from '../sms/sms.service';
 
 const OTP_TTL_MS = 5 * 60 * 1000;
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
@@ -16,7 +17,10 @@ const MAX_ATTEMPTS = 5;
 
 @Injectable()
 export class AuthService {
-  constructor(@Inject(PRISMA) private readonly db: PrismaClient) {}
+  constructor(
+    @Inject(PRISMA) private readonly db: PrismaClient,
+    private readonly sms: SmsService,
+  ) {}
 
   async requestOtp(phoneRaw: string) {
     const phone = this.requirePhone(phoneRaw);
@@ -37,8 +41,7 @@ export class AuthService {
       },
     });
 
-    const message = `رمز الدخول لمنصة الطباعة: ${code} (صالح 5 دقائق)`;
-    console.log(`[SMS mock] To ${phone}: ${message}`);
+    await this.sms.sendOtp(phone, code, 'login');
 
     const response: {
       ok: true;
@@ -50,10 +53,10 @@ export class AuthService {
       ok: true,
       phone,
       expires_in_seconds: Math.floor(OTP_TTL_MS / 1000),
-      message: 'تم إرسال رمز التحقق إلى رقم هاتفك',
+      message: this.sms.otpSentMessage('login'),
     };
 
-    if (process.env.NODE_ENV !== 'production' || process.env.OTP_DEV_EXPOSE === 'true') {
+    if (this.sms.shouldExposeDevCode()) {
       response.dev_code = code;
     }
 
@@ -167,8 +170,11 @@ export class AuthService {
   }
 
   private requirePhone(phoneRaw: string): string {
-    if (!isValidPhone(phoneRaw)) {
-      throw new BadRequestException('رقم الهاتف غير صالح. أدخل رقماً صحيحاً مع رمز الدولة إن لزم');
+    const message = getPhoneErrorMessageAr(phoneRaw, { required: true });
+    if (message || !isValidPhone(phoneRaw)) {
+      throw new BadRequestException(
+        message ?? 'رقم الهاتف غير صالح. اختر الدولة وأدخل الرقم بشكل صحيح',
+      );
     }
     return normalizePhone(phoneRaw)!;
   }

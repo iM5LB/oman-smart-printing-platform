@@ -1,246 +1,128 @@
 'use client';
 
-import { FormEvent, useCallback, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import {
-  createLibraryDevice,
-  DeviceRow,
-  fetchLibraryMe,
-  LibraryMe,
-  listLibraryDevices,
-  logoutLibrary,
-  revokeLibraryDevice,
-  rotateLibraryDevice,
-  setLibraryDeviceSecurity,
-  updateLibraryStore,
-} from '@/lib/library-api';
-import { clearLibraryToken, getLibraryToken } from '@/lib/library-session';
+import { Lock } from 'lucide-react';
+import { fetchLibraryMe, loginLibrary } from '@/lib/library-api';
+import { clearLibraryToken, getLibraryToken, setLibraryToken } from '@/lib/library-session';
+import { TIBAA } from '@/lib/brand';
+import { TibaaBrand } from '@/components/tibaa-brand';
 
-export default function LibraryDashboardPage() {
+export default function LibraryLoginPage() {
   const router = useRouter();
-  const [me, setMe] = useState<LibraryMe | null>(null);
-  const [devices, setDevices] = useState<DeviceRow[]>([]);
   const [error, setError] = useState('');
-  const [notice, setNotice] = useState('');
-  const [newToken, setNewToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-
-  const refresh = useCallback(async () => {
-    const [meData, devicesData] = await Promise.all([fetchLibraryMe(), listLibraryDevices()]);
-    if (!meData.onboarding_complete) {
-      router.replace('/');
-      return;
-    }
-    setMe(meData);
-    setDevices(devicesData.devices);
-  }, [router]);
+  const [checking, setChecking] = useState(true);
 
   useEffect(() => {
-    if (!getLibraryToken()) {
-      router.replace('/');
+    const token = getLibraryToken();
+    if (!token) {
+      setChecking(false);
       return;
     }
-    refresh().catch(() => {
-      clearLibraryToken();
-      router.replace('/');
-    });
-  }, [refresh, router]);
-
-  async function onCreateDevice(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
-    const fd = new FormData(e.currentTarget);
-    try {
-      const res = await createLibraryDevice(String(fd.get('name') || 'جهاز الكاونتر'));
-      setNewToken(res.device_token);
-      setNotice(res.message);
-      await refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'فشل');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function onSaveSecurity(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
-    const fd = new FormData(e.currentTarget);
-    const pass = String(fd.get('device_password'));
-    if (pass !== String(fd.get('device_password_confirm'))) {
-      setError('كلمتا المرور غير متطابقتين');
-      setLoading(false);
-      return;
-    }
-    try {
-      await setLibraryDeviceSecurity(pass, String(fd.get('device_confirm_phone')));
-      setNotice('تم تحديث أمان الجهاز');
-      await refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'فشل');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function onSaveStore(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
-    const fd = new FormData(e.currentTarget);
-    try {
-      await updateLibraryStore({
-        name: String(fd.get('name')),
-        phone: String(fd.get('phone') || ''),
-        governorate: String(fd.get('governorate')),
-        wilayat: String(fd.get('wilayat')),
-        address: String(fd.get('address')),
+    fetchLibraryMe()
+      .then((me) => {
+        router.replace(me.onboarding_complete ? '/library/dashboard' : '/');
+      })
+      .catch(() => {
+        clearLibraryToken();
+        setChecking(false);
       });
-      setNotice('تم الحفظ');
-      await refresh();
+  }, [router]);
+
+  async function onSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    const fd = new FormData(e.currentTarget);
+    try {
+      const res = await loginLibrary(String(fd.get('email')), String(fd.get('password')));
+      setLibraryToken(res.token);
+      router.replace(res.onboarding_complete ? '/library/dashboard' : '/');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'فشل');
+      setError(err instanceof Error ? err.message : 'فشل الدخول');
     } finally {
       setLoading(false);
     }
   }
 
-  if (!me) {
+  if (checking) {
     return (
-      <main className="shell-home flex min-h-dvh items-center justify-center text-sm text-text-muted">
-        جاري التحميل…
-      </main>
+      <div className="admin-login-shell text-sm text-[#8b9bb0]">جاري التحميل…</div>
     );
   }
 
-  const statusLabel: Record<string, string> = {
-    connected: 'متصل',
-    disconnected: 'غير متصل',
-    revoked: 'ملغى',
-  };
-
   return (
-    <main className="shell-home min-h-dvh">
-      <header className="border-b border-border bg-surface">
-        <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-between gap-3 px-4 py-4">
-          <div>
-            <p className="text-xs font-semibold text-primary">إدارة المكتبة</p>
-            <h1 className="text-xl font-bold">{me.store.name}</h1>
+    <div className="admin-login-shell">
+      <div className="w-full max-w-md rounded-2xl border border-[#243044] bg-[#121826] p-6 shadow-xl sm:p-8">
+        <div className="mb-6 text-center">
+          <div className="mb-3 flex justify-center">
+            <TibaaBrand variant="icon" size="lg" />
           </div>
-          <div className="flex gap-2">
-            <a href={me.store.customer_shop_path} className="btn-outline !py-2 !text-sm">
-              فتح المتجر
-            </a>
-            <button
-              type="button"
-              className="btn-ghost"
-              onClick={async () => {
-                await logoutLibrary();
-                clearLibraryToken();
-                router.replace('/');
-              }}
-            >
-              خروج
-            </button>
-          </div>
-        </div>
-      </header>
-
-      <div className="mx-auto max-w-3xl space-y-4 px-4 py-6">
-        {(error || notice) && (
-          <div className={`rounded-xl px-4 py-3 text-sm ${error ? 'bg-red-50 text-error' : 'bg-accent text-primary'}`}>
-            {error || notice}
-          </div>
-        )}
-
-        {newToken && (
-          <div className="card border-primary/20 p-4">
-            <p className="text-sm font-semibold">رمز الجهاز (مرة واحدة)</p>
-            <p className="mt-2 break-all font-mono text-xs" dir="ltr">
-              {newToken}
-            </p>
-          </div>
-        )}
-
-        <section className="card p-5">
-          <h2 className="mb-3 text-lg font-bold">ربط الجهاز</h2>
-          <p className="mb-3 text-sm text-text-muted">
-            في التطبيق: معرّف <span dir="ltr">{me.store.slug}</span> + كلمة مرور الجهاز + رمز SMS.
+          <p className="text-2xl font-extrabold text-[#f1f5f9]">{TIBAA.nameAr}</p>
+          <p className="text-sm font-semibold text-[#38bdf8]">{TIBAA.nameEn}</p>
+          <h1 className="mt-4 text-xl font-bold text-[#f1f5f9]">دخول إدارة المكتبة</h1>
+          <p className="mt-2 text-sm text-[#8b9bb0]">
+            لوحة سطح المكتب لإدارة الطلبات والأجهزة والأسعار
           </p>
-          <form onSubmit={onCreateDevice} className="flex flex-wrap gap-2">
-            <input name="name" className="input-field flex-1" defaultValue="جهاز الكاونتر" />
-            <button type="submit" className="btn-primary" disabled={loading}>
-              إنشاء رمز
-            </button>
-          </form>
-          <ul className="mt-4 divide-y divide-border">
-            {devices.map((d) => (
-              <li key={d.id} className="flex flex-wrap items-center justify-between gap-2 py-3 text-sm">
-                <span className="font-medium">
-                  {d.name} · {statusLabel[d.status] ?? d.status}
-                </span>
-                {d.status !== 'revoked' && (
-                  <span className="flex gap-2">
-                    <button
-                      type="button"
-                      className="btn-ghost !py-1 !text-xs"
-                      onClick={async () => {
-                        const res = await rotateLibraryDevice(d.id);
-                        setNewToken(res.device_token);
-                        await refresh();
-                      }}
-                    >
-                      تجديد
-                    </button>
-                    <button
-                      type="button"
-                      className="btn-ghost !py-1 !text-xs text-error"
-                      onClick={async () => {
-                        await revokeLibraryDevice(d.id);
-                        await refresh();
-                      }}
-                    >
-                      إلغاء
-                    </button>
-                  </span>
-                )}
-              </li>
-            ))}
-          </ul>
-        </section>
+        </div>
 
-        <form onSubmit={onSaveStore} className="card space-y-3 p-5">
-          <h2 className="text-lg font-bold">بيانات المكتبة</h2>
-          <input name="name" className="input-field" defaultValue={me.store.name} required />
-          <input name="phone" className="input-field" dir="ltr" defaultValue={me.store.phone ?? ''} />
-          <div className="grid grid-cols-2 gap-2">
-            <input name="governorate" className="input-field" defaultValue={me.store.governorate ?? ''} required />
-            <input name="wilayat" className="input-field" defaultValue={me.store.wilayat ?? ''} required />
+        <form onSubmit={onSubmit} className="space-y-3">
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-[#b6c2d4]" htmlFor="email">
+              البريد الإلكتروني
+            </label>
+            <input
+              id="email"
+              name="email"
+              type="email"
+              className="admin-input"
+              required
+              dir="ltr"
+              autoComplete="username"
+              placeholder="admin@store.tibaa.local"
+            />
           </div>
-          <input name="address" className="input-field" defaultValue={me.store.address ?? ''} required />
-          <button type="submit" className="btn-primary" disabled={loading}>
-            حفظ
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-[#b6c2d4]" htmlFor="password">
+              كلمة المرور
+            </label>
+            <div className="relative">
+              <Lock
+                className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-[#8b9bb0]"
+                aria-hidden
+              />
+              <input
+                id="password"
+                name="password"
+                type="password"
+                className="admin-input !ps-10"
+                required
+                minLength={8}
+                dir="ltr"
+                autoComplete="current-password"
+              />
+            </div>
+          </div>
+
+          {error ? (
+            <p className="text-sm text-[#ef4444]" role="alert">
+              {error}
+            </p>
+          ) : null}
+
+          <button type="submit" className="admin-btn-primary w-full py-3" disabled={loading}>
+            {loading ? 'جارٍ…' : 'دخول'}
           </button>
         </form>
 
-        <form onSubmit={onSaveSecurity} className="card space-y-3 p-5">
-          <h2 className="text-lg font-bold">أمان الجهاز</h2>
-          <input name="device_password" type="password" className="input-field" required minLength={6} dir="ltr" placeholder="كلمة مرور جديدة" />
-          <input name="device_password_confirm" type="password" className="input-field" required minLength={6} dir="ltr" placeholder="تأكيد" />
-          <input
-            name="device_confirm_phone"
-            className="input-field"
-            required
-            dir="ltr"
-            defaultValue={me.store.device_confirm_phone ?? ''}
-          />
-          <button type="submit" className="btn-primary" disabled={loading}>
-            تحديث
-          </button>
-        </form>
+        <p className="mt-5 text-center text-xs text-[#8b9bb0]">
+          إعداد مكتبة جديدة؟{' '}
+          <a href="/" className="text-[#38bdf8] underline-offset-2 hover:underline">
+            ابدأ من هنا
+          </a>
+        </p>
       </div>
-    </main>
+    </div>
   );
 }

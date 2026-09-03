@@ -7,15 +7,12 @@ import {
   Building2,
   Check,
   ImagePlus,
-  KeyRound,
   Lock,
-  MapPin,
-  MonitorSmartphone,
-  Printer,
 } from 'lucide-react';
 import {
   completeLibraryOnboarding,
   fetchLibraryMe,
+  InitialCredentials,
   LibraryMe,
   registerLibrary,
   setLibraryDeviceSecurity,
@@ -23,6 +20,7 @@ import {
   updateLibraryStore,
   uploadLibraryLogo,
 } from '@/lib/library-api';
+import { PhoneInput } from '@/components/phone-input';
 import {
   clearLibraryToken,
   clearSetupToken,
@@ -33,6 +31,8 @@ import {
 } from '@/lib/library-session';
 import { slugifyBrand } from '@/lib/slugs';
 import { cn } from '@/lib/utils';
+import { TIBAA } from '@/lib/brand';
+import { TibaaBrand } from '@/components/tibaa-brand';
 import type { PickedLocation } from '@/components/location-picker-map';
 
 const LocationPickerMap = dynamic(
@@ -115,6 +115,15 @@ export function LibraryOnboardingHome() {
   const [brandName, setBrandName] = useState('');
   const [slug, setSlug] = useState('');
   const [slugTouched, setSlugTouched] = useState(false);
+  const [credentials, setCredentials] = useState<InitialCredentials | null>(() => {
+    if (typeof window === 'undefined') return null;
+    try {
+      const raw = sessionStorage.getItem('omsp_initial_creds');
+      return raw ? (JSON.parse(raw) as InitialCredentials) : null;
+    } catch {
+      return null;
+    }
+  });
   const [loc, setLoc] = useState({
     governorate: '',
     wilayat: '',
@@ -141,7 +150,7 @@ export function LibraryOnboardingHome() {
       fetchLibraryMe()
         .then((data) => {
           if (data.onboarding_complete) {
-            router.replace(data.store.customer_shop_path);
+            router.replace('/library/dashboard');
             return;
           }
           setMe(data);
@@ -214,12 +223,17 @@ export function LibraryOnboardingHome() {
           store_name: storeName,
           store_slug: slugHint,
           phone: String(fd.get('phone') || '') || undefined,
-          owner_name: String(fd.get('owner_name') || storeName),
-          email: String(fd.get('email')),
-          password: String(fd.get('password')),
         });
         setLibraryToken(res.token);
         clearSetupToken();
+        if (res.initial_credentials) {
+          setCredentials(res.initial_credentials);
+          try {
+            sessionStorage.setItem('omsp_initial_creds', JSON.stringify(res.initial_credentials));
+          } catch {
+            /* ignore */
+          }
+        }
       } else {
         await updateLibraryStore({
           name: storeName,
@@ -311,8 +325,13 @@ export function LibraryOnboardingHome() {
     setLoading(true);
     setError('');
     try {
-      const res = await completeLibraryOnboarding();
-      router.replace(res.store?.customer_shop_path ?? me!.store.customer_shop_path);
+      await completeLibraryOnboarding();
+      try {
+        sessionStorage.removeItem('omsp_initial_creds');
+      } catch {
+        /* ignore */
+      }
+      router.replace('/library/dashboard');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'تعذّر الإنهاء');
       setLoading(false);
@@ -333,12 +352,11 @@ export function LibraryOnboardingHome() {
       <div className="page-shell">
         <div className="page-content setup-lock animate-fade-in">
           <div className="setup-lock-top">
-            <div className="setup-lock-mark" aria-hidden>
-              <Printer className="size-6" />
-            </div>
-            <p className="setup-lock-brand">منصة الطباعة</p>
+            <TibaaBrand variant="icon" size="lg" />
+            <p className="setup-lock-brand">{TIBAA.nameAr}</p>
+            <p className="setup-lock-brand-en">{TIBAA.nameEn}</p>
             <h1 className="setup-lock-title">إعداد المكتبة</h1>
-            <p className="setup-lock-sub">للمسؤول فقط — أول تشغيل لمكتبة الطباعة</p>
+            <p className="setup-lock-sub">{TIBAA.taglineAr}</p>
           </div>
 
           <form onSubmit={onUnlock} className="setup-lock-form">
@@ -383,14 +401,11 @@ export function LibraryOnboardingHome() {
       <div className="page-content setup-flow">
         <header className="setup-flow-head">
           <div className="setup-flow-head-row">
-            <div className="setup-flow-icon" aria-hidden>
-              {step === 'brand' && <Building2 className="size-5" />}
-              {step === 'location' && <MapPin className="size-5" />}
-              {step === 'device' && <MonitorSmartphone className="size-5" />}
-              {step === 'review' && <KeyRound className="size-5" />}
-            </div>
+            <TibaaBrand variant="icon" size="sm" className="shrink-0 !h-12 !w-12" />
             <div className="min-w-0 flex-1">
-              <p className="setup-flow-kicker">إعداد المكتبة · خطوة {stepMeta.num} من 4</p>
+              <p className="setup-flow-kicker">
+                {TIBAA.nameAr} · إعداد المكتبة · خطوة {stepMeta.num} من 4
+              </p>
               <h1 className="setup-flow-title truncate">
                 {me?.store.name || brandName || 'مكتبة جديدة'}
               </h1>
@@ -478,57 +493,14 @@ export function LibraryOnboardingHome() {
                   <label className="label" htmlFor="phone">
                     رقم المكتبة
                   </label>
-                  <input
+                  <PhoneInput
                     id="phone"
                     name="phone"
-                    className="input-field"
-                    dir="ltr"
                     defaultValue={me?.store.phone ?? ''}
-                    placeholder="+968 9xxx xxxx"
+                    showError
                   />
                 </div>
               </section>
-
-              {creating && (
-                <section className="setup-section setup-section-muted">
-                  <h2 className="setup-section-title">حساب الإدارة</h2>
-                  <p className="setup-section-sub">للدخول لاحقاً من /library — ليس لطلبات العملاء</p>
-                  <div>
-                    <label className="label" htmlFor="owner_name">
-                      اسم المسؤول
-                    </label>
-                    <input id="owner_name" name="owner_name" className="input-field" required />
-                  </div>
-                  <div>
-                    <label className="label" htmlFor="email">
-                      البريد
-                    </label>
-                    <input
-                      id="email"
-                      name="email"
-                      type="email"
-                      className="input-field"
-                      required
-                      dir="ltr"
-                      placeholder="owner@library.om"
-                    />
-                  </div>
-                  <div>
-                    <label className="label" htmlFor="password">
-                      كلمة مرور الحساب
-                    </label>
-                    <input
-                      id="password"
-                      name="password"
-                      type="password"
-                      className="input-field"
-                      required
-                      minLength={8}
-                      dir="ltr"
-                    />
-                  </div>
-                </section>
-              )}
 
               <FieldError message={error} />
             </form>
@@ -656,14 +628,12 @@ export function LibraryOnboardingHome() {
                   <label className="label" htmlFor="device_confirm_phone">
                     رقم استلام رمز الربط
                   </label>
-                  <input
+                  <PhoneInput
                     id="device_confirm_phone"
                     name="device_confirm_phone"
-                    className="input-field"
                     required
-                    dir="ltr"
+                    showError
                     defaultValue={me.store.device_confirm_phone ?? me.store.phone ?? ''}
-                    placeholder="+968 9xxx xxxx"
                   />
                 </div>
               </section>
@@ -675,7 +645,7 @@ export function LibraryOnboardingHome() {
             <div className="setup-form">
               <section className="setup-section">
                 <h2 className="setup-section-title">جاهز للإطلاق</h2>
-                <p className="setup-section-sub">راجع البيانات ثم افتح متجر العملاء</p>
+                <p className="setup-section-sub">راجع البيانات ثم افتح لوحة إدارة المكتبة</p>
 
                 <div className="setup-review-card">
                   <div className="setup-review-brand">
@@ -689,15 +659,23 @@ export function LibraryOnboardingHome() {
                     )}
                     <div>
                       <p className="setup-review-name">{me.store.name}</p>
-                      <p className="setup-review-url" dir="ltr">
-                        /{me.store.slug}
-                      </p>
+                      <a
+                        href={me.store.customer_shop_path || `/${me.store.slug}`}
+                        className="setup-review-url text-[var(--admin-info,#3b82f6)] underline-offset-2 hover:underline"
+                        dir="ltr"
+                      >
+                        {typeof window !== 'undefined'
+                          ? `${window.location.host}${me.store.customer_shop_path || `/${me.store.slug}`}`
+                          : me.store.customer_shop_path || `/${me.store.slug}`}
+                      </a>
                     </div>
                   </div>
                   <dl className="setup-review-list">
                     <div>
                       <dt>الهاتف</dt>
-                      <dd dir="ltr">{me.store.phone || '—'}</dd>
+                      <dd className="unicode-bidi-isolate" dir="ltr">
+                        {me.store.phone || '—'}
+                      </dd>
                     </div>
                     <div>
                       <dt>الموقع</dt>
@@ -713,6 +691,27 @@ export function LibraryOnboardingHome() {
                     </div>
                   </dl>
                 </div>
+
+                {credentials && (
+                  <div className="setup-review-card mt-3">
+                    <p className="setup-section-title" style={{ fontSize: '1rem' }}>
+                      بيانات الدخول للوحة الإدارة
+                    </p>
+                    <p className="setup-section-sub">
+                      احفظها الآن — ستحتاجها للدخول لاحقاً من /library
+                    </p>
+                    <dl className="setup-review-list">
+                      <div>
+                        <dt>البريد</dt>
+                        <dd dir="ltr">{credentials.email}</dd>
+                      </div>
+                      <div>
+                        <dt>كلمة المرور</dt>
+                        <dd dir="ltr">{credentials.password}</dd>
+                      </div>
+                    </dl>
+                  </div>
+                )}
               </section>
               <FieldError message={error} />
             </div>
@@ -742,7 +741,7 @@ export function LibraryOnboardingHome() {
               disabled={loading}
               onClick={finish}
             >
-              {loading ? 'جارٍ…' : 'إنهاء وفتح المتجر'}
+              {loading ? 'جارٍ…' : 'إنهاء وفتح لوحة الإدارة'}
             </button>
           ) : (
             <button

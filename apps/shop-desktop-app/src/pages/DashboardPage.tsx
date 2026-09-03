@@ -216,7 +216,7 @@ export function DashboardPage() {
         <PageHeading
           icon={Icons.home({ size: 22 })}
           title="لوحة التحكم"
-          description={`مرحباً بك في ${me?.store.name ?? "منصة الطباعة"} — نظرة سريعة على التشغيل اليوم`}
+          description={`مرحباً بك في ${me?.store.name ?? "طباعة"} — نظرة سريعة على التشغيل اليوم`}
         />
 
         {/* KPI row */}
@@ -310,7 +310,7 @@ export function DashboardPage() {
                           {o.customer_name || "—"}
                         </td>
                         <td
-                          className="hidden whitespace-nowrap px-3 py-2.5 text-text-secondary lg:table-cell"
+                          className="unicode-bidi-isolate hidden whitespace-nowrap px-3 py-2.5 text-text-secondary lg:table-cell"
                           dir="ltr"
                         >
                           {o.customer_phone || "—"}

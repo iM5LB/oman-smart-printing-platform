@@ -55,6 +55,22 @@ UI → Tauri `invoke(list_printers | print_test)` → spawns `print-worker.exe` 
 { "cmd": "print.test", "printerId": "..." }
 ```
 
+## Windows installer
+
+From the repo root (Rust + MSVC + .NET 8 SDK required):
+
+```powershell
+npm run desktop:build
+```
+
+The setup file is written to:
+
+`apps/shop-desktop-app/src-tauri/target/release/bundle/nsis/Tibaa_*_x64-setup.exe`
+
+Run that EXE on the library PC. It installs for the **current Windows user** (no admin prompt). If Windows SmartScreen appears, choose **More info → Run anyway**.
+
+The installer embeds WebView2 and a self-contained print worker, so the PC does not need .NET or a separate WebView2 download.
+
 ## Auto-updates
 
 See [UPDATES.md](./UPDATES.md) for GitHub Releases + Tauri updater setup (secrets, tagging `v*`, verification).

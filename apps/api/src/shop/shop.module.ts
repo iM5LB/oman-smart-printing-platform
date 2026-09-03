@@ -9,5 +9,6 @@ import { PrintingModule } from '../printing/printing.module';
   imports: [NotificationsModule, forwardRef(() => PrintingModule)],
   controllers: [ShopController],
   providers: [ShopService, DeviceAuthGuard],
+  exports: [ShopService],
 })
 export class ShopModule {}
