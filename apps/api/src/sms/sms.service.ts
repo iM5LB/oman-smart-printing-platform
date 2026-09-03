@@ -2,7 +2,9 @@ import { Injectable, type OnModuleInit } from '@nestjs/common';
 import { normalizePhone } from '@omsp/shared';
 import { WhatsAppCloudClient } from './whatsapp-cloud.client';
 
-export type SmsProviderName = 'mock' | 'whatsapp';
+/** OTP channel: Meta WhatsApp Cloud API only (no SMS gateway). `mock` is local/dev. */
+export type OtpProviderName = 'mock' | 'whatsapp';
+export type SmsProviderName = OtpProviderName;
 export type SmsOtpPurpose = 'login' | 'device_pairing';
 
 @Injectable()
@@ -10,15 +12,20 @@ export class SmsService implements OnModuleInit {
   constructor(private readonly whatsapp: WhatsAppCloudClient) {}
 
   onModuleInit(): void {
-    logWhatsAppConfigSanity(this.getProvider());
+    const provider = this.getProvider();
+    if (process.env.NODE_ENV === 'production' && provider !== 'whatsapp') {
+      console.warn(
+        '[otp] production OTP should use Meta WhatsApp Cloud API (SMS_PROVIDER=whatsapp). SMS is not supported.',
+      );
+    }
+    logWhatsAppConfigSanity(provider);
   }
 
-  getProvider(): SmsProviderName {
-    const raw = (process.env.SMS_PROVIDER ?? 'mock').toLowerCase().trim();
+  getProvider(): OtpProviderName {
+    const raw = (process.env.SMS_PROVIDER ?? process.env.OTP_PROVIDER ?? 'mock').toLowerCase().trim();
     if (raw === 'whatsapp') return 'whatsapp';
-    if (raw && raw !== 'mock') {
-      console.warn(`[sms] unknown SMS_PROVIDER="${raw}", falling back to mock`);
-    }
+    if (raw === 'mock' || !raw) return 'mock';
+    console.warn(`[otp] unsupported provider "${raw}" (SMS not supported). Use mock | whatsapp`);
     return 'mock';
   }
 
@@ -26,7 +33,7 @@ export class SmsService implements OnModuleInit {
     return this.getProvider() === 'mock';
   }
 
-  /** Mock always returns `dev_code`. Real WhatsApp only in non-production or OTP_DEV_EXPOSE. */
+  /** Mock always returns `dev_code`. Real WhatsApp only when OTP_DEV_EXPOSE or non-production. */
   shouldExposeDevCode(): boolean {
     return (
       this.isMock() ||
@@ -42,11 +49,11 @@ export class SmsService implements OnModuleInit {
         : 'تم إرسال رمز التحقق عبر واتساب';
     }
     return purpose === 'device_pairing'
-      ? 'تم إرسال رمز التأكيد إلى رقم هاتف المكتبة المسجّل في الموقع'
-      : 'تم إرسال رمز التحقق إلى رقم هاتفك';
+      ? 'تم إنشاء رمز التأكيد (وضع التطوير — راجع سجل الخادم)'
+      : 'تم إنشاء رمز التحقق (وضع التطوير — راجع سجل الخادم)';
   }
 
-  /** `phone` is the recipient (customer or library confirm). Never rewrite to the business sender line. */
+  /** Recipient is the customer or library confirm phone. Never rewrite to the business sender line. */
   async sendOtp(phone: string, code: string, purpose: SmsOtpPurpose): Promise<void> {
     const text =
       purpose === 'device_pairing'
@@ -54,7 +61,7 @@ export class SmsService implements OnModuleInit {
         : `رمز الدخول لطباعة: ${code} (صالح 5 دقائق)`;
 
     if (this.isMock()) {
-      console.log(`[SMS mock] To ${phone}: ${text}`);
+      console.log(`[otp mock] To ${phone}: ${text}`);
       return;
     }
 
@@ -70,7 +77,7 @@ export class SmsService implements OnModuleInit {
     const text = `طلبك ${orderNumber} جاهز للاستلام — ${storeName}`;
 
     if (this.isMock()) {
-      console.log(`[SMS mock] To ${phone}: ${text}`);
+      console.log(`[otp mock] To ${phone}: ${text}`);
       return { ok: true };
     }
 
@@ -87,7 +94,7 @@ export class SmsService implements OnModuleInit {
   }
 }
 
-function logWhatsAppConfigSanity(provider: SmsProviderName): void {
+function logWhatsAppConfigSanity(provider: OtpProviderName): void {
   const businessRaw = process.env.WHATSAPP_BUSINESS_NUMBER?.trim();
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID?.trim();
   const token = process.env.WHATSAPP_TOKEN?.trim();

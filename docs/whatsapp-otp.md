@@ -1,6 +1,6 @@
 # WhatsApp Cloud API OTP
 
-Customer login and library device-pairing codes are sent through the official **Meta WhatsApp Cloud API**. There is no Baileys / whatsapp-web.js session.
+Customer login and library device-pairing codes are sent through the official **Meta WhatsApp Cloud API** only. There is **no SMS gateway** and no Baileys / whatsapp-web.js session.
 
 **Business WhatsApp line (sender):** `+96876655365` (Oman, national `76655365`).
 
@@ -12,7 +12,7 @@ This is the number to register and connect in [WhatsApp Manager](https://busines
 | **To** (customer login OTP) | Each customer’s own phone |
 | **To** (library device-pairing OTP) | That store’s `deviceConfirmPhone` (demo seed uses `+96876655365`) |
 
-Set `SMS_PROVIDER=mock` locally (codes are logged and returned as `dev_code`). Set `SMS_PROVIDER=whatsapp` on Render once the Meta template is approved and Phone number ID is pasted.
+Set `SMS_PROVIDER=mock` locally (codes are logged and returned as `dev_code`). On Render set `SMS_PROVIDER=whatsapp` once the Meta template is approved and Phone number ID is pasted — OTP is WhatsApp-only.
 
 ## 1. Meta Business setup
 

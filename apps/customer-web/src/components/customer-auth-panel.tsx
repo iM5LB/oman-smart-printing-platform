@@ -215,7 +215,7 @@ export function CustomerAuthPanel({
           {mode === 'phone' && (
             <form onSubmit={handleSendCode} className="space-y-4">
               <p className="text-sm text-text-muted">
-                أدخل رقم هاتفك لعرض طلباتك ومتابعة حالتها
+                أدخل رقم هاتفك — سنرسل رمز التحقق عبر واتساب لعرض طلباتك
               </p>
               <label className="block">
                 <span className="option-label">رقم الهاتف</span>
@@ -240,7 +240,7 @@ export function CustomerAuthPanel({
           {mode === 'code' && (
             <form onSubmit={handleVerify} className="space-y-4">
               <p className="text-sm text-text-muted">
-                أدخل الرمز المرسل إلى{' '}
+                أدخل الرمز المرسل عبر واتساب إلى{' '}
                 <span className="unicode-bidi-isolate font-semibold text-text" dir="ltr">
                   {phone}
                 </span>
