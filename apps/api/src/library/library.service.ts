@@ -68,76 +68,135 @@ export class LibraryService {
     }
     if (!(input.store_name ?? '').trim()) throw new BadRequestException('اسم المكتبة مطلوب');
 
-    const existing = await this.db.user.findUnique({ where: { email } });
-    if (existing) throw new BadRequestException('هذا البريد مسجّل مسبقاً');
+    try {
+      const existing = await this.db.user.findUnique({ where: { email } });
+      if (existing) throw new BadRequestException('هذا البريد مسجّل مسبقاً');
 
-    let slug = slugify(input.store_slug || input.store_name);
-    const slugTaken = await this.db.store.findUnique({ where: { slug } });
-    if (slugTaken) slug = `${slug}-${randomBytes(2).toString('hex')}`;
+      let slug = slugify(input.store_slug || input.store_name);
+      const slugTaken = await this.db.store.findUnique({
+        where: { slug },
+        select: { id: true },
+      });
+      if (slugTaken) slug = `${slug}-${randomBytes(2).toString('hex')}`;
 
-    const phone = input.phone ? this.requirePhone(input.phone) : null;
+      const phone = input.phone ? this.requirePhone(input.phone) : null;
 
-    const user = await this.db.user.create({
-      data: {
-        email,
-        passwordHash: hashPassword(input.password),
-        name: input.owner_name.trim() || 'مالك المكتبة',
-        phone,
-        storeUsers: {
-          create: {
-            role: 'owner',
-            store: {
-              create: {
-                slug,
-                name: input.store_name.trim(),
-                phone,
-                openingHours: {
-                  create: [0, 1, 2, 3, 4, 5, 6].map((dayOfWeek) => ({
-                    dayOfWeek,
-                    openTime: dayOfWeek === 6 ? '09:00' : '08:00',
-                    closeTime: dayOfWeek === 6 ? '18:00' : '22:00',
-                    isClosed: false,
-                  })),
-                },
-                pricingRules: {
-                  create: [
-                    { paperSize: 'A4', colorMode: 'bw', pricePerPage: 20 },
-                    { paperSize: 'A4', colorMode: 'color', pricePerPage: 100 },
-                    { paperSize: 'A3', colorMode: 'bw', pricePerPage: 50 },
-                    { paperSize: 'A3', colorMode: 'color', pricePerPage: 200 },
-                  ],
+      const user = await this.db.user.create({
+        data: {
+          email,
+          passwordHash: hashPassword(input.password),
+          name: input.owner_name.trim() || 'مالك المكتبة',
+          phone,
+          storeUsers: {
+            create: {
+              role: 'owner',
+              store: {
+                create: {
+                  slug,
+                  name: input.store_name.trim(),
+                  phone,
+                  openingHours: {
+                    create: [0, 1, 2, 3, 4, 5, 6].map((dayOfWeek) => ({
+                      dayOfWeek,
+                      openTime: dayOfWeek === 6 ? '09:00' : '08:00',
+                      closeTime: dayOfWeek === 6 ? '18:00' : '22:00',
+                      isClosed: false,
+                    })),
+                  },
+                  pricingRules: {
+                    create: [
+                      { paperSize: 'A4', colorMode: 'bw', pricePerPage: 20 },
+                      { paperSize: 'A4', colorMode: 'color', pricePerPage: 100 },
+                      { paperSize: 'A3', colorMode: 'bw', pricePerPage: 50 },
+                      { paperSize: 'A3', colorMode: 'color', pricePerPage: 200 },
+                    ],
+                  },
                 },
               },
             },
           },
         },
-      },
-      include: {
-        storeUsers: { include: { store: true } },
-      },
-    });
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          storeUsers: {
+            take: 1,
+            select: {
+              store: {
+                select: {
+                  id: true,
+                  slug: true,
+                  name: true,
+                  phone: true,
+                  logoUrl: true,
+                  governorate: true,
+                  wilayat: true,
+                  address: true,
+                  latitude: true,
+                  longitude: true,
+                },
+              },
+            },
+          },
+        },
+      });
 
-    const storeUser = user.storeUsers[0];
-    const session = await this.createSession(user.id);
+      const storeUser = user.storeUsers[0];
+      if (!storeUser) throw new BadRequestException('فشل إنشاء المكتبة');
 
-    return {
-      token: session.token,
-      expires_at: session.expiresAt.toISOString(),
-      user: { id: user.id, email: user.email, name: user.name },
-      store: this.mapStore(storeUser.store),
-      onboarding_complete: false,
-    };
+      const session = await this.createSession(user.id);
+      const store = this.withStoreDefaults(storeUser.store);
+
+      return {
+        token: session.token,
+        expires_at: session.expiresAt.toISOString(),
+        user: { id: user.id, email: user.email, name: user.name },
+        store: this.mapStore(store),
+        onboarding_complete: false,
+      };
+    } catch (err) {
+      if (err instanceof BadRequestException || err instanceof UnauthorizedException) throw err;
+      console.error('[library.register] database error:', err);
+      const msg = err instanceof Error ? err.message : '';
+      if (/owner_sessions|device_password|onboarding_completed|does not exist|P2021|P2022/i.test(msg)) {
+        throw new BadRequestException(
+          'قاعدة البيانات تحتاج تحديثاً. من Render Shell على omsp-api شغّل: npm run db:push:prod',
+        );
+      }
+      throw new BadRequestException('تعذر إنشاء الحساب. تحقق من قاعدة البيانات وحاول مجدداً');
+    }
   }
 
   async login(emailRaw: string, password: string) {
     const email = emailRaw.trim().toLowerCase();
     const user = await this.db.user.findUnique({
       where: { email },
-      include: {
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        passwordHash: true,
+        isActive: true,
         storeUsers: {
           where: { role: { in: ['owner', 'manager'] } },
-          include: { store: true },
           take: 1,
+          select: {
+            store: {
+              select: {
+                id: true,
+                slug: true,
+                name: true,
+                phone: true,
+                logoUrl: true,
+                governorate: true,
+                wilayat: true,
+                address: true,
+                latitude: true,
+                longitude: true,
+              },
+            },
+          },
         },
       },
     });
@@ -150,38 +209,79 @@ export class LibraryService {
     if (!storeUser) throw new ForbiddenException('لا توجد مكتبة مرتبطة بهذا الحساب');
 
     const session = await this.createSession(user.id);
+    const store = this.withStoreDefaults(storeUser.store);
     return {
       token: session.token,
       expires_at: session.expiresAt.toISOString(),
       user: { id: user.id, email: user.email, name: user.name },
-      store: this.mapStore(storeUser.store),
-      onboarding_complete: !!storeUser.store.onboardingCompletedAt,
+      store: this.mapStore(store),
+      onboarding_complete: !!store.onboardingCompletedAt,
     };
   }
 
   async logout(token: string | undefined) {
     if (!token) return { ok: true };
-    await this.db.ownerSession.deleteMany({ where: { tokenHash: hashSha256(token) } });
+    if (token.startsWith('own1.')) return { ok: true };
+    try {
+      await this.db.ownerSession.deleteMany({ where: { tokenHash: hashSha256(token) } });
+    } catch (err) {
+      console.error('[library.logout] session cleanup failed:', err);
+    }
     return { ok: true };
   }
 
   async resolveSession(token: string | undefined) {
     if (!token) throw new UnauthorizedException('يجب تسجيل الدخول');
 
-    const session = await this.db.ownerSession.findUnique({
-      where: { tokenHash: hashSha256(token) },
-      include: {
-        user: {
-          include: {
-            storeUsers: {
-              where: { role: { in: ['owner', 'manager'] } },
-              include: { store: true },
-              take: 1,
+    if (token.startsWith('own1.')) {
+      return this.resolveSignedSession(token);
+    }
+
+    let session;
+    try {
+      session = await this.db.ownerSession.findUnique({
+        where: { tokenHash: hashSha256(token) },
+        select: {
+          id: true,
+          expiresAt: true,
+          user: {
+            select: {
+              id: true,
+              email: true,
+              name: true,
+              phone: true,
+              isActive: true,
+              storeUsers: {
+                where: { role: { in: ['owner', 'manager'] } },
+                take: 1,
+                select: {
+                  role: true,
+                  store: {
+                    select: {
+                      id: true,
+                      slug: true,
+                      name: true,
+                      phone: true,
+                      logoUrl: true,
+                      governorate: true,
+                      wilayat: true,
+                      address: true,
+                      latitude: true,
+                      longitude: true,
+                    },
+                  },
+                },
+              },
             },
           },
         },
-      },
-    });
+      });
+    } catch (err) {
+      console.error('[library.resolveSession] database error:', err);
+      throw new BadRequestException(
+        'قاعدة البيانات تحتاج تحديثاً. من Render Shell على omsp-api شغّل: npm run db:push:prod',
+      );
+    }
 
     if (!session || session.expiresAt.getTime() < Date.now()) {
       if (session) {
@@ -193,7 +293,11 @@ export class LibraryService {
     const storeUser = session.user.storeUsers[0];
     if (!storeUser) throw new ForbiddenException('لا توجد مكتبة مرتبطة بهذا الحساب');
 
-    return { user: session.user, store: storeUser.store, role: storeUser.role };
+    return {
+      user: session.user,
+      store: this.withStoreDefaults(storeUser.store),
+      role: storeUser.role,
+    };
   }
 
   async me(token: string | undefined) {
@@ -232,8 +336,53 @@ export class LibraryService {
     if (body.latitude !== undefined) data.latitude = body.latitude;
     if (body.longitude !== undefined) data.longitude = body.longitude;
 
-    const updated = await this.db.store.update({ where: { id: store.id }, data });
-    return { store: this.mapStore(updated), onboarding: this.onboardingStatus(updated) };
+    let updated;
+    try {
+      updated = await this.db.store.update({
+        where: { id: store.id },
+        data,
+        select: {
+          id: true,
+          slug: true,
+          name: true,
+          phone: true,
+          logoUrl: true,
+          governorate: true,
+          wilayat: true,
+          address: true,
+          latitude: true,
+          longitude: true,
+        },
+      });
+    } catch (err) {
+      console.error('[library.updateStore] database error:', err);
+      const msg = err instanceof Error ? err.message : '';
+      if (data.area !== undefined && /area|P2022|does not exist/i.test(msg)) {
+        delete data.area;
+        updated = await this.db.store.update({
+          where: { id: store.id },
+          data,
+          select: {
+            id: true,
+            slug: true,
+            name: true,
+            phone: true,
+            logoUrl: true,
+            governorate: true,
+            wilayat: true,
+            address: true,
+            latitude: true,
+            longitude: true,
+          },
+        });
+      } else {
+        throw new BadRequestException(
+          'قاعدة البيانات تحتاج تحديثاً. من Render Shell على omsp-api شغّل: npm run db:push:prod',
+        );
+      }
+    }
+    const mapped = this.withStoreDefaults(updated);
+    return { store: this.mapStore(mapped), onboarding: this.onboardingStatus(mapped) };
   }
 
   async setDeviceSecurity(
@@ -246,18 +395,27 @@ export class LibraryService {
     }
     const phone = this.requirePhone(body.device_confirm_phone);
 
-    const updated = await this.db.store.update({
-      where: { id: store.id },
-      data: {
-        devicePasswordHash: hashPassword(body.device_password),
-        deviceConfirmPhone: phone,
-      },
-    });
+    let updated;
+    try {
+      updated = await this.db.store.update({
+        where: { id: store.id },
+        data: {
+          devicePasswordHash: hashPassword(body.device_password),
+          deviceConfirmPhone: phone,
+        },
+      });
+    } catch (err) {
+      console.error('[library.setDeviceSecurity] database error:', err);
+      throw new BadRequestException(
+        'قاعدة البيانات تحتاج تحديثاً. من Render Shell على omsp-api شغّل: npm run db:push:prod',
+      );
+    }
 
+    const mapped = this.withStoreDefaults(updated);
     return {
       ok: true,
-      store: this.mapStore(updated),
-      onboarding: this.onboardingStatus(updated),
+      store: this.mapStore(mapped),
+      onboarding: this.onboardingStatus(mapped),
       message: 'تم حفظ كلمة مرور الجهاز ورقم التأكيد',
     };
   }
@@ -510,12 +668,102 @@ export class LibraryService {
   }
 
   private async createSession(userId: string) {
-    const token = randomBytes(32).toString('hex');
     const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
-    await this.db.ownerSession.create({
-      data: { userId, tokenHash: hashSha256(token), expiresAt },
+    const token = randomBytes(32).toString('hex');
+    try {
+      await this.db.ownerSession.create({
+        data: { userId, tokenHash: hashSha256(token), expiresAt },
+      });
+      return { token, expiresAt };
+    } catch (err) {
+      console.error('[library.createSession] falling back to signed token:', err);
+      return {
+        token: this.issueSignedSessionToken(userId, expiresAt),
+        expiresAt,
+      };
+    }
+  }
+
+  private issueSignedSessionToken(userId: string, expiresAt: Date): string {
+    const exp = expiresAt.getTime();
+    const payload = `${userId}.${exp}`;
+    const sig = createHmac('sha256', this.setupHmacSecret()).update(`own:${payload}`).digest('hex');
+    return `own1.${payload}.${sig}`;
+  }
+
+  private async resolveSignedSession(token: string) {
+    const parts = token.split('.');
+    if (parts.length !== 4 || parts[0] !== 'own1') {
+      throw new UnauthorizedException('انتهت الجلسة. سجّل الدخول مجدداً');
+    }
+    const [, userId, expStr, sig] = parts;
+    const payload = `${userId}.${expStr}`;
+    const expected = createHmac('sha256', this.setupHmacSecret()).update(`own:${payload}`).digest('hex');
+    try {
+      const a = Buffer.from(sig, 'hex');
+      const b = Buffer.from(expected, 'hex');
+      if (a.length !== b.length || !timingSafeEqual(a, b)) {
+        throw new UnauthorizedException('انتهت الجلسة. سجّل الدخول مجدداً');
+      }
+    } catch {
+      throw new UnauthorizedException('انتهت الجلسة. سجّل الدخول مجدداً');
+    }
+    const exp = Number(expStr);
+    if (!Number.isFinite(exp) || exp < Date.now()) {
+      throw new UnauthorizedException('انتهت الجلسة. سجّل الدخول مجدداً');
+    }
+
+    const user = await this.db.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        phone: true,
+        isActive: true,
+        storeUsers: {
+          where: { role: { in: ['owner', 'manager'] } },
+          take: 1,
+          select: {
+            role: true,
+            store: {
+              select: {
+                id: true,
+                slug: true,
+                name: true,
+                phone: true,
+                logoUrl: true,
+                governorate: true,
+                wilayat: true,
+                address: true,
+                latitude: true,
+                longitude: true,
+              },
+            },
+          },
+        },
+      },
     });
-    return { token, expiresAt };
+
+    if (!user || !user.isActive) throw new UnauthorizedException('انتهت الجلسة. سجّل الدخول مجدداً');
+    const storeUser = user.storeUsers[0];
+    if (!storeUser) throw new ForbiddenException('لا توجد مكتبة مرتبطة بهذا الحساب');
+
+    return {
+      user,
+      store: this.withStoreDefaults(storeUser.store),
+      role: storeUser.role,
+    };
+  }
+
+  private withStoreDefaults<T extends Record<string, unknown>>(store: T) {
+    return {
+      area: null as string | null,
+      deviceConfirmPhone: null as string | null,
+      devicePasswordHash: null as string | null,
+      onboardingCompletedAt: null as Date | null,
+      ...store,
+    };
   }
 
   private setupHmacSecret(): string {

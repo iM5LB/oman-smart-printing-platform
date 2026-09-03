@@ -7,10 +7,29 @@ export class StoresService {
   constructor(@Inject(PRISMA) private readonly db: PrismaClient) {}
 
   async findBySlug(slug: string) {
-    const store = await this.db.store.findFirst({
-      where: { slug, isActive: true },
-      include: { openingHours: { orderBy: { dayOfWeek: 'asc' } } },
-    });
+    let store;
+    try {
+      // Explicit select avoids failing when newer optional store columns are not migrated yet.
+      store = await this.db.store.findFirst({
+        where: { slug, isActive: true },
+        select: {
+          id: true,
+          slug: true,
+          name: true,
+          logoUrl: true,
+          phone: true,
+          governorate: true,
+          wilayat: true,
+          address: true,
+          latitude: true,
+          longitude: true,
+          openingHours: { orderBy: { dayOfWeek: 'asc' } },
+        },
+      });
+    } catch (err) {
+      console.error('[stores.findBySlug] database error:', err);
+      throw err;
+    }
 
     if (!store) throw new NotFoundException('المكتبة غير موجودة');
 

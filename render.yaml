@@ -19,8 +19,10 @@ services:
     rootDir: .
     # Prefer explicit filters so desktop apps are not part of the API image build.
     buildCommand: NPM_CONFIG_PRODUCTION=false npm ci --omit=optional && npx turbo run build --filter=@omsp/api
+    # Push schema before start so missing tables (owner_sessions, etc.) cannot 500 register.
+    # Keep preDeploy as a first attempt; start:api:render re-runs push if preDeploy was skipped in the UI.
     preDeployCommand: npm run db:push:prod
-    startCommand: npm run start:api
+    startCommand: npm run start:api:render
     healthCheckPath: /api/v1/health
     envVars:
       - key: NODE_VERSION
