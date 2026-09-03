@@ -10,6 +10,8 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   const defaultOrigins = [
+    'https://omsp-web.onrender.com',
+    'https://omsp.onrender.com',
     'http://localhost:3000',
     'http://localhost:3001',
     'http://localhost:1420',
