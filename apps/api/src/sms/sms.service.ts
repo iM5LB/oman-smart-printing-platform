@@ -33,13 +33,12 @@ export class SmsService implements OnModuleInit {
     return this.getProvider() === 'mock';
   }
 
-  /** Mock always returns `dev_code`. Real WhatsApp only when OTP_DEV_EXPOSE or non-production. */
+  /** Mock always returns `dev_code` in non-production. Production never leaks unless OTP_DEV_EXPOSE=true. */
   shouldExposeDevCode(): boolean {
-    return (
-      this.isMock() ||
-      process.env.OTP_DEV_EXPOSE === 'true' ||
-      process.env.NODE_ENV !== 'production'
-    );
+    if (process.env.NODE_ENV === 'production') {
+      return process.env.OTP_DEV_EXPOSE === 'true';
+    }
+    return this.isMock() || process.env.OTP_DEV_EXPOSE === 'true';
   }
 
   otpSentMessage(purpose: SmsOtpPurpose): string {

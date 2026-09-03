@@ -33,11 +33,27 @@ export interface UploadedFile {
   page_count: number;
 }
 
+export async function createUploadSession(
+  storeSlug: string,
+): Promise<{ upload_token: string; expires_in_seconds: number }> {
+  return apiFetch(`/stores/${storeSlug}/uploads/session`, { method: 'POST' });
+}
+
 export async function uploadFile(storeSlug: string, file: File): Promise<UploadedFile> {
+  let bearer: string | null = null;
+  if (typeof window !== 'undefined') {
+    bearer = localStorage.getItem('omsp_customer_token');
+  }
+  if (!bearer) {
+    const session = await createUploadSession(storeSlug);
+    bearer = session.upload_token;
+  }
+
   const form = new FormData();
   form.append('file', file);
   const res = await fetch(`${getApiBase()}/api/v1/stores/${storeSlug}/uploads`, {
     method: 'POST',
+    headers: { Authorization: `Bearer ${bearer}` },
     body: form,
   });
   if (!res.ok) {

@@ -56,6 +56,7 @@ git push origin v0.1.1
 ```
 
 4. Workflow `.github/workflows/release-desktop.yml` builds a self-contained print-worker + Tauri NSIS on `windows-latest`, then creates a GitHub Release with `latest.json` (`includeUpdaterJson: true`). Local `npm run desktop:build` skips updater signing unless `TAURI_SIGNING_PRIVATE_KEY` is set.
+5. For SmartScreen (Authenticode), configure Azure Trusted Signing or a PFX — see [SIGNING.md](./SIGNING.md). Without those secrets the installer builds but stays unsigned.
 
 You can also run the workflow manually via **Actions → Release desktop → Run workflow**.
 

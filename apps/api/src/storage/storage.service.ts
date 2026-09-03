@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { createHmac, randomUUID } from 'crypto';
+import { createHmac, randomUUID, timingSafeEqual } from 'crypto';
 import { mkdir, readFile, writeFile, unlink } from 'fs/promises';
 import { join } from 'path';
 
@@ -59,9 +59,22 @@ export class StorageService {
       const sig = decoded.slice(lastColon + 1);
       const payload = decoded.slice(0, lastColon);
       const expected = createHmac('sha256', this.secret).update(payload).digest('hex');
-      if (sig !== expected) return null;
-      const [fileKey, expiresAtStr] = payload.split(':');
+      const a = Buffer.from(sig, 'utf8');
+      const b = Buffer.from(expected, 'utf8');
+      if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
+      const sep = payload.lastIndexOf(':');
+      if (sep === -1) return null;
+      const fileKey = payload.slice(0, sep);
+      const expiresAtStr = payload.slice(sep + 1);
       if (!fileKey || !expiresAtStr) return null;
+      if (
+        fileKey.includes('..') ||
+        fileKey.includes('\\') ||
+        fileKey.startsWith('/') ||
+        fileKey.includes('\0')
+      ) {
+        return null;
+      }
       if (Date.now() > parseInt(expiresAtStr, 10)) return null;
       return fileKey;
     } catch {

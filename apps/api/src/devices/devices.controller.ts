@@ -1,4 +1,5 @@
 import { Body, Controller, Post } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { IsString, MinLength } from 'class-validator';
 import { LibraryService } from '../library/library.service';
 
@@ -32,11 +33,13 @@ export class DevicesController {
 
   /** Pair desktop app: password → OTP to library confirm phone → device token. */
   @Post('pair/start')
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   pairStart(@Body() dto: PairStartDto) {
     return this.library.startPairing(dto.store_slug, dto.device_password, dto.device_name);
   }
 
   @Post('pair/confirm')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   pairConfirm(@Body() dto: PairConfirmDto) {
     return this.library.confirmPairing(dto.challenge_id, dto.code);
   }

@@ -17,7 +17,7 @@ Production-ready smart printing platform for Omani print shops, libraries, and c
 
 ```
 apps/
-  customer-web/      Customer-facing Arabic website
+  customer-web/      Customer site + library onboarding/admin
   shop-desktop-app/  Tauri shop desktop (React + Rust)
   print-worker/      .NET print bridge for Windows
   shop-desktop/      Legacy WPF prototype (transitional)
@@ -26,8 +26,6 @@ packages/
   database/          Prisma schema + PostgreSQL
   shared/            Business logic (money, phone, pricing)
   types/             Shared TypeScript types
-services/
-  document-processing/  PDF conversion (future)
 docs/
   architecture/      System design documents
   adr/               Architecture Decision Records
@@ -96,9 +94,12 @@ npm run dev
 
 ```bash
 npm run desktop:dev
+npm run desktop:build   # NSIS installer under src-tauri/target/release/bundle/nsis/
 ```
 
 Requires .NET 8 SDK for `print-worker`, plus the Tauri/Rust toolchain for the desktop shell.
+
+Releases: tag `v*` → GitHub Actions builds the installer. Auto-updates use minisign (`UPDATES.md`). **SmartScreen** needs Authenticode — see [`apps/shop-desktop-app/SIGNING.md`](apps/shop-desktop-app/SIGNING.md) (Azure Trusted Signing or OV/EV PFX secrets).
 
 ## Phase 1 MVP
 

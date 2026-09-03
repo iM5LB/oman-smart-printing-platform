@@ -14,6 +14,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { Throttle } from '@nestjs/throttler';
 import type { Request } from 'express';
 import {
   IsEmail,
@@ -154,16 +155,19 @@ export class LibraryController {
   ) {}
 
   @Post('setup/unlock')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   unlockSetup(@Body() dto: UnlockSetupDto) {
     return this.library.unlockSetup(dto.password);
   }
 
   @Post('auth/register')
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   register(@Body() dto: RegisterDto) {
     return this.library.register(dto);
   }
 
   @Post('auth/login')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   login(@Body() dto: LoginDto) {
     return this.library.login(dto.email, dto.password);
   }

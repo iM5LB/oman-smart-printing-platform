@@ -8,6 +8,7 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { IsString, MinLength } from 'class-validator';
 import { AuthService } from './auth.service';
 import { CustomerAuthGuard } from './customer-auth.guard';
@@ -33,18 +34,22 @@ export class AuthController {
   constructor(private readonly auth: AuthService) {}
 
   @Post('auth/otp/request')
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   requestOtp(@Body() dto: RequestOtpDto) {
     return this.auth.requestOtp(dto.phone);
   }
 
   @Post('auth/otp/verify')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   verifyOtp(@Body() dto: VerifyOtpDto) {
     return this.auth.verifyOtp(dto.phone, dto.code);
   }
 
   @Post('auth/logout')
   logout(@Headers('authorization') authorization?: string) {
-    const token = authorization?.startsWith('Bearer ') ? authorization.slice(7).trim() : undefined;
+    const token = authorization?.startsWith('Bearer ')
+      ? authorization.slice(7).trim()
+      : undefined;
     return this.auth.logout(token);
   }
 

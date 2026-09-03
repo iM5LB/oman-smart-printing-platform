@@ -76,6 +76,8 @@ apps/print-worker/**/*.pdb
 apps/shop-desktop-app/src-tauri/target/
 apps/shop-desktop-app/src-tauri/binaries/
 apps/shop-desktop-app/src-tauri/gen/
+apps/shop-desktop-app/src-tauri/tauri.windows-sign.json
+certificate/
 
 # Accidental tsc emit into src/
 packages/database/src/**/*.js
@@ -94,3 +96,4 @@ coverage/
 tmp/
 temp/
 *.tmp
+**/.vite-temp/

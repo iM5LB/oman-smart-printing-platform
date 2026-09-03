@@ -5,10 +5,10 @@
  * Requires: Node 20, Rust + MSVC, .NET 8 SDK.
  * Output: apps/shop-desktop-app/src-tauri/target/release/bundle/nsis/
  */
-import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { spawnSync } from "node:child_process";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const srcTauri = join(root, "apps", "shop-desktop-app", "src-tauri");
@@ -148,15 +148,73 @@ if (updaterKey) {
   );
 }
 
+/** Optional Authenticode via PFX (see apps/shop-desktop-app/SIGNING.md). */
+const signConfigPath = join(srcTauri, "tauri.windows-sign.json");
+const pfxFile = process.env.WINDOWS_CERTIFICATE_FILE;
+const pfxPassword = process.env.WINDOWS_CERTIFICATE_PASSWORD || "";
+const tauriArgs = ["build", "--bundles", "nsis"];
+
+if (pfxFile) {
+  if (!existsSync(pfxFile)) {
+    console.error("WINDOWS_CERTIFICATE_FILE not found:", pfxFile);
+    process.exit(1);
+  }
+  console.log("Importing PFX for Authenticode…");
+  const importScript = [
+    `$secure = ConvertTo-SecureString -String ${JSON.stringify(pfxPassword)} -Force -AsPlainText`,
+    `$cert = Import-PfxCertificate -FilePath ${JSON.stringify(pfxFile)} -CertStoreLocation Cert:\\CurrentUser\\My -Password $secure`,
+    `Write-Output $cert.Thumbprint`,
+  ].join("; ");
+  const importResult = spawnSync(
+    "powershell.exe",
+    ["-NoProfile", "-NonInteractive", "-Command", importScript],
+    { encoding: "utf8", windowsHide: true },
+  );
+  if (importResult.status !== 0) {
+    console.error(importResult.stderr || importResult.stdout || "PFX import failed");
+    process.exit(importResult.status ?? 1);
+  }
+  const thumb = String(importResult.stdout || "")
+    .trim()
+    .split(/\r?\n/)
+    .filter(Boolean)
+    .pop();
+  if (!thumb || !/^[0-9A-Fa-f]{40}$/.test(thumb)) {
+    console.error("Could not read certificate thumbprint from PFX import.");
+    process.exit(1);
+  }
+  console.log("Authenticode thumbprint:", thumb);
+  writeFileSync(
+    signConfigPath,
+    JSON.stringify(
+      {
+        bundle: {
+          windows: {
+            certificateThumbprint: thumb,
+            digestAlgorithm: "sha256",
+            timestampUrl: "http://timestamp.digicert.com",
+          },
+        },
+      },
+      null,
+      2,
+    ),
+    "utf8",
+  );
+  tauriArgs.push("--config", signConfigPath);
+} else {
+  console.log(
+    "No WINDOWS_CERTIFICATE_FILE — installer will be unsigned (SmartScreen warning).",
+  );
+}
+
 console.log("Building Windows NSIS installer…");
 runInMsvc("npm", [
   "run",
   "tauri",
   "--workspace=@omsp/shop-desktop-app",
   "--",
-  "build",
-  "--bundles",
-  "nsis",
+  ...tauriArgs,
 ]);
 
 const nsisDir = join(srcTauri, "target", "release", "bundle", "nsis");

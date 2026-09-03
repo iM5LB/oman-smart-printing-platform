@@ -1,17 +1,21 @@
-# Desktop release (Windows NSIS + Tauri updater artifacts)
+# Desktop release (Windows NSIS + Tauri updater artifacts + optional Authenticode)
 #
-# Triggers: push tag v* (e.g. v0.1.1) or workflow_dispatch
+# Triggers: push tag v* (e.g. v0.1.2) or workflow_dispatch
 #
-# Required GitHub Actions secrets (Settings → Secrets and variables → Actions):
-#   TAURI_SIGNING_PRIVATE_KEY          — full private key string (from ~/.tauri/omsp-desktop.key)
-#   TAURI_SIGNING_PRIVATE_KEY_PASSWORD — password; leave empty / omit if key has none
-#   GITHUB_TOKEN                       — provided automatically by Actions
+# Required secrets:
+#   TAURI_SIGNING_PRIVATE_KEY          — updater minisign private key
+#   TAURI_SIGNING_PRIVATE_KEY_PASSWORD — empty if key has no password
 #
-# Cut a release (after bumping version in package.json, tauri.conf.json, Cargo.toml):
-#   git tag v0.1.1
-#   git push origin v0.1.1
+# Optional Authenticode (SmartScreen) — set ONE of:
+#   A) Azure Artifact Signing (~$10/mo, org in USA/CA/EU/UK or individual in US/CA):
+#      AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET,
+#      AZURE_TRUSTED_SIGNING_ENDPOINT, AZURE_TRUSTED_SIGNING_ACCOUNT, AZURE_TRUSTED_SIGNING_PROFILE
+#   B) PFX certificate — e.g. Certum Cloud OV (~$115/yr, any country, no USB token):
+#      WINDOWS_CERTIFICATE (base64 pfx), WINDOWS_CERTIFICATE_PASSWORD
 #
-# See apps/shop-desktop-app/UPDATES.md for full steps.
+# See apps/shop-desktop-app/SIGNING.md for full setup guide including cost comparison.
+#
+# See apps/shop-desktop-app/SIGNING.md and UPDATES.md
 
 name: Release desktop
 
@@ -69,12 +73,90 @@ jobs:
             throw "print-worker.exe missing after publish"
           }
 
+      - name: Detect Authenticode mode
+        id: codesign
+        env:
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+        run: |
+          if (-not [string]::IsNullOrWhiteSpace($env:WINDOWS_CERTIFICATE)) {
+            echo "mode=pfx" >> $env:GITHUB_OUTPUT
+          } elseif (-not [string]::IsNullOrWhiteSpace($env:AZURE_CLIENT_ID)) {
+            echo "mode=azure" >> $env:GITHUB_OUTPUT
+          } else {
+            echo "mode=none" >> $env:GITHUB_OUTPUT
+            Write-Warning "No Authenticode secrets — SmartScreen will warn on downloads."
+          }
+
+      - name: Import Windows PFX certificate
+        if: steps.codesign.outputs.mode == 'pfx'
+        env:
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          New-Item -ItemType Directory -Force -Path certificate | Out-Null
+          Set-Content -Path certificate/tempCert.txt -Value $env:WINDOWS_CERTIFICATE
+          certutil -decode certificate/tempCert.txt certificate/certificate.pfx
+          Remove-Item certificate/tempCert.txt -Force
+          $secure = ConvertTo-SecureString -String $env:WINDOWS_CERTIFICATE_PASSWORD -Force -AsPlainText
+          $cert = Import-PfxCertificate -FilePath certificate/certificate.pfx -CertStoreLocation Cert:\CurrentUser\My -Password $secure
+          $thumb = $cert.Thumbprint
+          Write-Host "Imported certificate thumbprint $thumb"
+          $cfg = @{
+            bundle = @{
+              createUpdaterArtifacts = $true
+              windows = @{
+                certificateThumbprint = $thumb
+                digestAlgorithm = "sha256"
+                timestampUrl = "http://timestamp.digicert.com"
+              }
+            }
+          } | ConvertTo-Json -Depth 5
+          Set-Content -Path apps/shop-desktop-app/src-tauri/tauri.windows-sign.json -Value $cfg -Encoding utf8
+          echo "TAURI_EXTRA_CONFIG=apps/shop-desktop-app/src-tauri/tauri.windows-sign.json" >> $env:GITHUB_ENV
+
+      - name: Setup Azure Trusted Signing
+        if: steps.codesign.outputs.mode == 'azure'
+        env:
+          AZURE_TRUSTED_SIGNING_ENDPOINT: ${{ secrets.AZURE_TRUSTED_SIGNING_ENDPOINT }}
+          AZURE_TRUSTED_SIGNING_ACCOUNT: ${{ secrets.AZURE_TRUSTED_SIGNING_ACCOUNT }}
+          AZURE_TRUSTED_SIGNING_PROFILE: ${{ secrets.AZURE_TRUSTED_SIGNING_PROFILE }}
+        run: |
+          cargo install artifact-signing-cli --locked
+          $endpoint = $env:AZURE_TRUSTED_SIGNING_ENDPOINT
+          $account = $env:AZURE_TRUSTED_SIGNING_ACCOUNT
+          $profile = $env:AZURE_TRUSTED_SIGNING_PROFILE
+          if ([string]::IsNullOrWhiteSpace($endpoint) -or [string]::IsNullOrWhiteSpace($account) -or [string]::IsNullOrWhiteSpace($profile)) {
+            throw "Azure Trusted Signing secrets incomplete (ENDPOINT/ACCOUNT/PROFILE)"
+          }
+          $signCmd = "artifact-signing-cli -e $endpoint -a $account -c $profile -d Tibaa %1"
+          $cfg = @{
+            bundle = @{
+              createUpdaterArtifacts = $true
+              windows = @{
+                signCommand = $signCmd
+              }
+            }
+          } | ConvertTo-Json -Depth 5
+          Set-Content -Path apps/shop-desktop-app/src-tauri/tauri.windows-sign.json -Value $cfg -Encoding utf8
+          echo "TAURI_EXTRA_CONFIG=apps/shop-desktop-app/src-tauri/tauri.windows-sign.json" >> $env:GITHUB_ENV
+
+      - name: Write updater-only merge config
+        if: steps.codesign.outputs.mode == 'none'
+        run: |
+          $cfg = @{ bundle = @{ createUpdaterArtifacts = $true } } | ConvertTo-Json -Depth 5
+          Set-Content -Path apps/shop-desktop-app/src-tauri/tauri.windows-sign.json -Value $cfg -Encoding utf8
+          echo "TAURI_EXTRA_CONFIG=apps/shop-desktop-app/src-tauri/tauri.windows-sign.json" >> $env:GITHUB_ENV
+
       - name: Build Tauri app & publish GitHub Release
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
         with:
           projectPath: apps/shop-desktop-app
           tagName: ${{ github.ref_name }}
@@ -84,7 +166,10 @@ jobs:
 
             Download `Tibaa_*_x64-setup.exe` and run it. No admin account is required
             (installs for the current Windows user). WebView2 is bundled if missing.
+
+            Authenticode signing is applied when certificate secrets are configured
+            (see apps/shop-desktop-app/SIGNING.md).
           releaseDraft: false
           prerelease: false
           includeUpdaterJson: true
-          args: --bundles nsis --config "{\"bundle\":{\"createUpdaterArtifacts\":true}}"
+          args: --bundles nsis --config ${{ env.TAURI_EXTRA_CONFIG }}

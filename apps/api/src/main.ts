@@ -9,21 +9,30 @@ config({ path: resolve(__dirname, '../../../.env') });
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
+  const isProd = process.env.NODE_ENV === 'production';
+  const allowLocalhostCors =
+    !isProd || process.env.ALLOW_LOCALHOST_CORS === 'true';
+
   const defaultOrigins = [
     'https://omsp-web.onrender.com',
     'https://omsp.onrender.com',
-    'http://localhost:3000',
-    'http://localhost:3001',
-    'http://localhost:1420',
-    'http://127.0.0.1:1420',
+    ...(allowLocalhostCors
+      ? [
+          'http://localhost:3000',
+          'http://localhost:1420',
+          'http://127.0.0.1:1420',
+          'http://tauri.localhost',
+        ]
+      : []),
     'tauri://localhost',
     'https://tauri.localhost',
-    'http://tauri.localhost',
   ];
   const envOrigins = (process.env.CORS_ORIGIN ?? process.env.NEXT_PUBLIC_APP_URL ?? '')
     .split(',')
     .map((o) => o.trim())
-    .filter(Boolean);
+    .filter(Boolean)
+    .filter((o) => allowLocalhostCors || !/localhost|127\.0\.0\.1/i.test(o));
+
   app.enableCors({
     origin: [...new Set([...defaultOrigins, ...envOrigins])],
     credentials: true,
