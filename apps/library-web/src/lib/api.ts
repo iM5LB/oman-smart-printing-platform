@@ -15,7 +15,7 @@ export function getApiBase(): string {
 export function getCustomerShopBase(): string {
   const fromEnv = process.env.NEXT_PUBLIC_CUSTOMER_WEB_URL;
   if (fromEnv) return fromEnv.replace(/\/+$/, '');
-  return 'https://omsp.onrender.com';
+  return 'https://omsp-web.onrender.com';
 }
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {

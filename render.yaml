@@ -67,7 +67,7 @@ services:
           type: web
           envVarKey: RENDER_EXTERNAL_URL
       - key: CORS_ORIGIN
-        value: "https://omsp.onrender.com,http://localhost:3000,http://localhost:3001,http://localhost:1420,tauri://localhost,https://tauri.localhost"
+        value: "https://omsp-web.onrender.com,https://omsp.onrender.com,http://localhost:3000,http://localhost:3001,http://localhost:1420,tauri://localhost,https://tauri.localhost"
 
   - type: web
     name: omsp-web

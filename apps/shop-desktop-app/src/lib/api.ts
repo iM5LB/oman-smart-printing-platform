@@ -34,7 +34,7 @@ export function getApiBase(): string {
 export function getWebBase(): string {
   const fromEnv = import.meta.env.VITE_WEB_URL;
   if (fromEnv) return normalizeApiBase(fromEnv);
-  return "https://omsp.onrender.com";
+  return "https://omsp-web.onrender.com";
 }
 
 /** Full public shop URL for customers (scan / share). */
