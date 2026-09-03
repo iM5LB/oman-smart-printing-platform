@@ -6,7 +6,7 @@
  * Output: apps/shop-desktop-app/src-tauri/target/release/bundle/nsis/
  */
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, unlinkSync } from "node:fs";
+import { existsSync, mkdirSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -140,11 +140,11 @@ if (existsSync(pdb)) {
 const updaterKey =
   process.env.TAURI_SIGNING_PRIVATE_KEY ||
   process.env.TAURI_SIGNING_PRIVATE_KEY_PATH;
-const extraArgs = [];
 if (updaterKey) {
-  extraArgs.push(
-    "--config",
-    JSON.stringify({ bundle: { createUpdaterArtifacts: true } }),
+  console.log("Updater signing enabled (TAURI_SIGNING_PRIVATE_KEY set).");
+} else {
+  console.log(
+    "Warning: TAURI_SIGNING_PRIVATE_KEY not set — build will fail if createUpdaterArtifacts is true.",
   );
 }
 
@@ -157,7 +157,6 @@ runInMsvc("npm", [
   "build",
   "--bundles",
   "nsis",
-  ...extraArgs,
 ]);
 
 const nsisDir = join(srcTauri, "target", "release", "bundle", "nsis");

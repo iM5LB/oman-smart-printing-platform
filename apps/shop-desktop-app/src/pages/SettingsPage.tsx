@@ -21,7 +21,7 @@ import {
 } from "../lib/labels";
 import { StoreBrandMark } from "../components/StoreBrandMark";
 
-const APP_VERSION = "v0.1.0";
+const APP_VERSION = "v0.1.1";
 
 function dash(value: string | number | null | undefined) {
   if (value == null || value === "") return "—";
