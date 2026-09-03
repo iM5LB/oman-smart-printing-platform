@@ -74,6 +74,8 @@ export class StoresService {
     const base =
       process.env.PUBLIC_API_URL ??
       process.env.API_PUBLIC_URL ??
+      process.env.API_URL ??
+      process.env.RENDER_EXTERNAL_URL ??
       `http://localhost:${process.env.API_PORT ?? 4000}`;
     return `${base.replace(/\/+$/, '')}/api/v1/stores/${slug}/logo`;
   }

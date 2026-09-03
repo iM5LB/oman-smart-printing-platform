@@ -19,6 +19,24 @@ const OTP_TTL_MS = 5 * 60 * 1000;
 const MAX_OTP_ATTEMPTS = 5;
 const SETUP_TOKEN_TTL_MS = 2 * 60 * 60 * 1000;
 
+/** Safe store projection for owner session / onboarding checks. */
+const STORE_OWNER_SELECT = {
+  id: true,
+  slug: true,
+  name: true,
+  phone: true,
+  logoUrl: true,
+  governorate: true,
+  wilayat: true,
+  area: true,
+  address: true,
+  latitude: true,
+  longitude: true,
+  deviceConfirmPhone: true,
+  devicePasswordHash: true,
+  onboardingCompletedAt: true,
+} as const;
+
 function slugify(input: string): string {
   const base = input
     .trim()
@@ -124,18 +142,7 @@ export class LibraryService {
             take: 1,
             select: {
               store: {
-                select: {
-                  id: true,
-                  slug: true,
-                  name: true,
-                  phone: true,
-                  logoUrl: true,
-                  governorate: true,
-                  wilayat: true,
-                  address: true,
-                  latitude: true,
-                  longitude: true,
-                },
+                select: STORE_OWNER_SELECT,
               },
             },
           },
@@ -183,18 +190,7 @@ export class LibraryService {
           take: 1,
           select: {
             store: {
-              select: {
-                id: true,
-                slug: true,
-                name: true,
-                phone: true,
-                logoUrl: true,
-                governorate: true,
-                wilayat: true,
-                address: true,
-                latitude: true,
-                longitude: true,
-              },
+              select: STORE_OWNER_SELECT,
             },
           },
         },
@@ -257,18 +253,7 @@ export class LibraryService {
                 select: {
                   role: true,
                   store: {
-                    select: {
-                      id: true,
-                      slug: true,
-                      name: true,
-                      phone: true,
-                      logoUrl: true,
-                      governorate: true,
-                      wilayat: true,
-                      address: true,
-                      latitude: true,
-                      longitude: true,
-                    },
+                    select: STORE_OWNER_SELECT,
                   },
                 },
               },
@@ -341,18 +326,7 @@ export class LibraryService {
       updated = await this.db.store.update({
         where: { id: store.id },
         data,
-        select: {
-          id: true,
-          slug: true,
-          name: true,
-          phone: true,
-          logoUrl: true,
-          governorate: true,
-          wilayat: true,
-          address: true,
-          latitude: true,
-          longitude: true,
-        },
+        select: STORE_OWNER_SELECT,
       });
     } catch (err) {
       console.error('[library.updateStore] database error:', err);
@@ -362,18 +336,7 @@ export class LibraryService {
         updated = await this.db.store.update({
           where: { id: store.id },
           data,
-          select: {
-            id: true,
-            slug: true,
-            name: true,
-            phone: true,
-            logoUrl: true,
-            governorate: true,
-            wilayat: true,
-            address: true,
-            latitude: true,
-            longitude: true,
-          },
+          select: STORE_OWNER_SELECT,
         });
       } else {
         throw new BadRequestException(
@@ -403,6 +366,7 @@ export class LibraryService {
           devicePasswordHash: hashPassword(body.device_password),
           deviceConfirmPhone: phone,
         },
+        select: STORE_OWNER_SELECT,
       });
     } catch (err) {
       console.error('[library.setDeviceSecurity] database error:', err);
@@ -440,11 +404,13 @@ export class LibraryService {
     const updated = await this.db.store.update({
       where: { id: store.id },
       data: { logoUrl: key },
+      select: STORE_OWNER_SELECT,
     });
 
+    const mapped = this.withStoreDefaults(updated);
     return {
-      store: this.mapStore(updated),
-      onboarding: this.onboardingStatus(updated),
+      store: this.mapStore(mapped),
+      onboarding: this.onboardingStatus(mapped),
       logo_url: this.publicLogoUrl({ slug: updated.slug, logoUrl: updated.logoUrl }),
     };
   }
@@ -459,9 +425,10 @@ export class LibraryService {
     const updated = await this.db.store.update({
       where: { id: store.id },
       data: { onboardingCompletedAt: new Date() },
+      select: STORE_OWNER_SELECT,
     });
 
-    return { ok: true, store: this.mapStore(updated), onboarding_complete: true };
+    return { ok: true, store: this.mapStore(this.withStoreDefaults(updated)), onboarding_complete: true };
   }
 
   async listDevices(token: string | undefined) {
@@ -727,18 +694,7 @@ export class LibraryService {
           select: {
             role: true,
             store: {
-              select: {
-                id: true,
-                slug: true,
-                name: true,
-                phone: true,
-                logoUrl: true,
-                governorate: true,
-                wilayat: true,
-                address: true,
-                latitude: true,
-                longitude: true,
-              },
+              select: STORE_OWNER_SELECT,
             },
           },
         },
@@ -870,13 +826,22 @@ export class LibraryService {
     };
   }
 
+  private publicApiBase(): string {
+    const base =
+      process.env.PUBLIC_API_URL ??
+      process.env.API_PUBLIC_URL ??
+      process.env.API_URL ??
+      process.env.RENDER_EXTERNAL_URL ??
+      `http://localhost:${process.env.API_PORT ?? 4000}`;
+    return base.replace(/\/+$/, '');
+  }
+
   private publicLogoUrl(store: { slug: string; logoUrl: string | null }): string | null {
     if (!store.logoUrl) return null;
     if (store.logoUrl.startsWith('http://') || store.logoUrl.startsWith('https://') || store.logoUrl.startsWith('data:')) {
       return store.logoUrl;
     }
-    const base = process.env.PUBLIC_API_URL ?? process.env.API_PUBLIC_URL ?? `http://localhost:${process.env.API_PORT ?? 4000}`;
-    return `${base.replace(/\/+$/, '')}/api/v1/stores/${store.slug}/logo`;
+    return `${this.publicApiBase()}/api/v1/stores/${store.slug}/logo`;
   }
 
   private requirePhone(phoneRaw: string): string {
