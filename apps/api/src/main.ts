@@ -13,25 +13,34 @@ async function bootstrap() {
   const allowLocalhostCors =
     !isProd || process.env.ALLOW_LOCALHOST_CORS === 'true';
 
+  // Desktop (Tauri) origins — always allowed. `tauri:dev` uses http://localhost:1420;
+  // packaged builds use https://tauri.localhost / tauri://localhost.
+  const desktopOrigins = [
+    'http://localhost:1420',
+    'http://127.0.0.1:1420',
+    'tauri://localhost',
+    'https://tauri.localhost',
+    'http://tauri.localhost',
+  ];
+
   const defaultOrigins = [
     'https://omsp-web.onrender.com',
     'https://omsp.onrender.com',
+    ...desktopOrigins,
     ...(allowLocalhostCors
-      ? [
-          'http://localhost:3000',
-          'http://localhost:1420',
-          'http://127.0.0.1:1420',
-          'http://tauri.localhost',
-        ]
+      ? ['http://localhost:3000', 'http://127.0.0.1:3000']
       : []),
-    'tauri://localhost',
-    'https://tauri.localhost',
   ];
   const envOrigins = (process.env.CORS_ORIGIN ?? process.env.NEXT_PUBLIC_APP_URL ?? '')
     .split(',')
     .map((o) => o.trim())
     .filter(Boolean)
-    .filter((o) => allowLocalhostCors || !/localhost|127\.0\.0\.1/i.test(o));
+    .filter(
+      (o) =>
+        allowLocalhostCors ||
+        desktopOrigins.includes(o) ||
+        !/localhost|127\.0\.0\.1/i.test(o),
+    );
 
   app.enableCors({
     origin: [...new Set([...defaultOrigins, ...envOrigins])],

@@ -208,14 +208,44 @@ export type ShopPricing = {
   finishing: FinishingService[];
 };
 
+function isTauriShell(): boolean {
+  return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+}
+
+/**
+ * Prefer Tauri HTTP plugin in the desktop shell (bypasses WebView CORS).
+ * Fall back to browser fetch for plain Vite / browser previews.
+ */
+async function httpFetch(
+  input: string,
+  init?: RequestInit,
+): Promise<Response> {
+  if (isTauriShell()) {
+    const { fetch: tauriFetch } = await import("@tauri-apps/plugin-http");
+    return tauriFetch(input, {
+      method: init?.method,
+      headers: init?.headers,
+      body: init?.body,
+    });
+  }
+  return fetch(input, init);
+}
+
 function mapFetchError(err: unknown): Error {
-  if (err instanceof TypeError) {
+  const base = getApiBase();
+  if (err instanceof TypeError || (err instanceof Error && /fetch|network|cors|failed/i.test(err.message))) {
     return new Error(
-      "تعذر الاتصال بالخادم. تحقق من الإنترنت أو شغّل الـ API محلياً في وضع التطوير.",
+      `تعذر الاتصال بالخادم (${base}). تحقق من الإنترنت أو أعد تشغيل التطبيق.`,
     );
   }
   if (err instanceof Error) return err;
-  return new Error("فشل الاتصال");
+  return new Error(`فشل الاتصال (${base})`);
+}
+
+async function parseErrorMessage(res: Response): Promise<string> {
+  const err = await res.json().catch(() => ({ message: `HTTP ${res.status}` }));
+  const msg = Array.isArray(err.message) ? err.message[0] : err.message;
+  return msg ?? `HTTP ${res.status}`;
 }
 
 async function request<T>(
@@ -225,7 +255,7 @@ async function request<T>(
 ): Promise<T> {
   let res: Response;
   try {
-    res = await fetch(`${apiUrl()}${path}`, {
+    res = await httpFetch(`${apiUrl()}${path}`, {
       ...init,
       headers: {
         "Content-Type": "application/json",
@@ -238,9 +268,7 @@ async function request<T>(
   }
 
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ message: `HTTP ${res.status}` }));
-    const msg = Array.isArray(err.message) ? err.message[0] : err.message;
-    throw new Error(msg ?? `HTTP ${res.status}`);
+    throw new Error(await parseErrorMessage(res));
   }
 
   if (res.status === 204) return undefined as T;
@@ -261,7 +289,7 @@ export const shopApi = {
   }) => {
     let res: Response;
     try {
-      res = await fetch(`${apiUrl()}/devices/pair/start`, {
+      res = await httpFetch(`${apiUrl()}/devices/pair/start`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -270,9 +298,7 @@ export const shopApi = {
       throw mapFetchError(err);
     }
     if (!res.ok) {
-      const err = await res.json().catch(() => ({ message: `HTTP ${res.status}` }));
-      const msg = Array.isArray(err.message) ? err.message[0] : err.message;
-      throw new Error(msg ?? `HTTP ${res.status}`);
+      throw new Error(await parseErrorMessage(res));
     }
     return (await res.json()) as {
       challenge_id: string;
@@ -285,7 +311,7 @@ export const shopApi = {
   pairConfirm: async (body: { challenge_id: string; code: string }) => {
     let res: Response;
     try {
-      res = await fetch(`${apiUrl()}/devices/pair/confirm`, {
+      res = await httpFetch(`${apiUrl()}/devices/pair/confirm`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -294,9 +320,7 @@ export const shopApi = {
       throw mapFetchError(err);
     }
     if (!res.ok) {
-      const err = await res.json().catch(() => ({ message: `HTTP ${res.status}` }));
-      const msg = Array.isArray(err.message) ? err.message[0] : err.message;
-      throw new Error(msg ?? `HTTP ${res.status}`);
+      throw new Error(await parseErrorMessage(res));
     }
     return (await res.json()) as {
       device_id: string;

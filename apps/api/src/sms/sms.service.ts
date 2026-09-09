@@ -1,31 +1,43 @@
 import { Injectable, type OnModuleInit } from '@nestjs/common';
 import { normalizePhone } from '@omsp/shared';
+import { TwilioSmsClient } from './twilio-sms.client';
 import { WhatsAppCloudClient } from './whatsapp-cloud.client';
 
-/** OTP channel: Meta WhatsApp Cloud API only (no SMS gateway). `mock` is local/dev. */
-export type OtpProviderName = 'mock' | 'whatsapp';
+/** Production: `twilio` (SMS). Optional: `whatsapp` (Meta). Local: `mock`. */
+export type OtpProviderName = 'mock' | 'twilio' | 'whatsapp';
 export type SmsProviderName = OtpProviderName;
 export type SmsOtpPurpose = 'login' | 'device_pairing';
 
 @Injectable()
 export class SmsService implements OnModuleInit {
-  constructor(private readonly whatsapp: WhatsAppCloudClient) {}
+  constructor(
+    private readonly twilio: TwilioSmsClient,
+    private readonly whatsapp: WhatsAppCloudClient,
+  ) {}
 
   onModuleInit(): void {
     const provider = this.getProvider();
-    if (process.env.NODE_ENV === 'production' && provider !== 'whatsapp') {
+    if (process.env.NODE_ENV === 'production' && provider === 'mock') {
       console.warn(
-        '[otp] production OTP should use Meta WhatsApp Cloud API (SMS_PROVIDER=whatsapp). SMS is not supported.',
+        '[otp] production is using mock OTP. Set SMS_PROVIDER=twilio (recommended) or whatsapp.',
+      );
+    }
+    if (provider === 'twilio' && !this.twilio.isConfigured()) {
+      console.warn(
+        '[otp] SMS_PROVIDER=twilio but Twilio env vars are incomplete (TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER).',
       );
     }
     logWhatsAppConfigSanity(provider);
   }
 
   getProvider(): OtpProviderName {
-    const raw = (process.env.SMS_PROVIDER ?? process.env.OTP_PROVIDER ?? 'mock').toLowerCase().trim();
+    const raw = (process.env.SMS_PROVIDER ?? process.env.OTP_PROVIDER ?? 'mock')
+      .toLowerCase()
+      .trim();
+    if (raw === 'twilio' || raw === 'sms') return 'twilio';
     if (raw === 'whatsapp') return 'whatsapp';
     if (raw === 'mock' || !raw) return 'mock';
-    console.warn(`[otp] unsupported provider "${raw}" (SMS not supported). Use mock | whatsapp`);
+    console.warn(`[otp] unsupported provider "${raw}". Use mock | twilio | whatsapp`);
     return 'mock';
   }
 
@@ -42,10 +54,16 @@ export class SmsService implements OnModuleInit {
   }
 
   otpSentMessage(purpose: SmsOtpPurpose): string {
-    if (this.getProvider() === 'whatsapp') {
+    const provider = this.getProvider();
+    if (provider === 'whatsapp') {
       return purpose === 'device_pairing'
         ? 'تم إرسال رمز التأكيد عبر واتساب إلى رقم هاتف المكتبة المسجّل'
         : 'تم إرسال رمز التحقق عبر واتساب';
+    }
+    if (provider === 'twilio') {
+      return purpose === 'device_pairing'
+        ? 'تم إرسال رمز التأكيد عبر رسالة نصية إلى رقم هاتف المكتبة المسجّل'
+        : 'تم إرسال رمز التحقق عبر رسالة نصية';
     }
     return purpose === 'device_pairing'
       ? 'تم إنشاء رمز التأكيد (وضع التطوير — راجع سجل الخادم)'
@@ -59,8 +77,16 @@ export class SmsService implements OnModuleInit {
         ? `رمز ربط جهاز المكتبة: ${code} (صالح 5 دقائق)`
         : `رمز الدخول لطباعة: ${code} (صالح 5 دقائق)`;
 
-    if (this.isMock()) {
+    const provider = this.getProvider();
+
+    if (provider === 'mock') {
       console.log(`[otp mock] To ${phone}: ${text}`);
+      return;
+    }
+
+    if (provider === 'twilio') {
+      const sid = await this.twilio.sendSms(phone, text);
+      console.log(`[twilio] OTP sent purpose=${purpose} to ${phone} sid=${sid ?? 'n/a'}`);
       return;
     }
 
@@ -74,10 +100,17 @@ export class SmsService implements OnModuleInit {
     storeName: string,
   ): Promise<{ ok: boolean; skipped?: boolean; providerMessageId?: string }> {
     const text = `طلبك ${orderNumber} جاهز للاستلام — ${storeName}`;
+    const provider = this.getProvider();
 
-    if (this.isMock()) {
+    if (provider === 'mock') {
       console.log(`[otp mock] To ${phone}: ${text}`);
       return { ok: true };
+    }
+
+    if (provider === 'twilio') {
+      const sid = await this.twilio.sendSms(phone, text);
+      console.log(`[twilio] order-ready sent to ${phone} sid=${sid ?? 'n/a'}`);
+      return { ok: true, providerMessageId: sid };
     }
 
     if (!this.whatsapp.hasOrderReadyTemplate()) {
@@ -94,6 +127,8 @@ export class SmsService implements OnModuleInit {
 }
 
 function logWhatsAppConfigSanity(provider: OtpProviderName): void {
+  if (provider !== 'whatsapp') return;
+
   const businessRaw = process.env.WHATSAPP_BUSINESS_NUMBER?.trim();
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID?.trim();
   const token = process.env.WHATSAPP_TOKEN?.trim();
@@ -104,34 +139,24 @@ function logWhatsAppConfigSanity(provider: OtpProviderName): void {
       console.warn(
         '[whatsapp] WHATSAPP_BUSINESS_NUMBER is set but is not a valid phone (use E.164, e.g. +96876655365)',
       );
-    } else if (provider === 'whatsapp') {
-      const hint = maskPhone(normalized);
+    } else {
       console.log(
-        `[whatsapp] sender line ${hint} must be registered in Meta WhatsApp Manager. Customer OTPs still go to each customer’s phone.`,
+        `[whatsapp] sender line ${maskPhone(normalized)} must be registered in Meta WhatsApp Manager.`,
       );
     }
   }
 
-  if (provider !== 'whatsapp') return;
-
   if (!phoneNumberId) {
     console.warn(
-      '[whatsapp] SMS_PROVIDER=whatsapp but WHATSAPP_PHONE_NUMBER_ID is empty. After adding +96876655365 in WhatsApp Manager, copy Phone number ID (not the MSISDN) into WHATSAPP_PHONE_NUMBER_ID.',
-    );
-  } else if (normalizePhone(phoneNumberId)) {
-    console.warn(
-      '[whatsapp] WHATSAPP_PHONE_NUMBER_ID looks like a phone number. Paste Meta’s Phone number ID from WhatsApp → API Setup, not +968…',
+      '[whatsapp] SMS_PROVIDER=whatsapp but WHATSAPP_PHONE_NUMBER_ID is empty.',
     );
   }
-
   if (!token) {
-    console.warn(
-      '[whatsapp] WHATSAPP_TOKEN is empty. Use a permanent system user token from Meta Business Settings.',
-    );
+    console.warn('[whatsapp] SMS_PROVIDER=whatsapp but WHATSAPP_TOKEN is empty.');
   }
 }
 
-function maskPhone(phone: string): string {
-  if (phone.length < 6) return '****';
-  return `${phone.slice(0, 4)}****${phone.slice(-2)}`;
+function maskPhone(e164: string): string {
+  if (e164.length < 6) return e164;
+  return `${e164.slice(0, 4)}****${e164.slice(-2)}`;
 }
