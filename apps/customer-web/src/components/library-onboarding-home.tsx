@@ -2,7 +2,6 @@
 
 import dynamic from 'next/dynamic';
 import { FormEvent, useEffect, useId, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import {
   Building2,
   Check,
@@ -44,6 +43,7 @@ const LocationPickerMap = dynamic(
 );
 
 type Step = 'brand' | 'location' | 'device' | 'review';
+type FlowPhase = Step | 'done';
 
 const STEPS: { id: Step; label: string; num: number }[] = [
   { id: 'brand', label: 'الهوية', num: 1 },
@@ -103,12 +103,11 @@ function FieldError({ message }: { message: string }) {
 }
 
 export function LibraryOnboardingHome() {
-  const router = useRouter();
   const logoInputId = useId();
   const [booting, setBooting] = useState(true);
   const [unlocked, setUnlocked] = useState(false);
   const [me, setMe] = useState<LibraryMe | null>(null);
-  const [step, setStep] = useState<Step>('brand');
+  const [step, setStep] = useState<FlowPhase>('brand');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
@@ -150,7 +149,13 @@ export function LibraryOnboardingHome() {
       fetchLibraryMe()
         .then((data) => {
           if (data.onboarding_complete) {
-            router.replace('/library/dashboard');
+            setMe(data);
+            setUnlocked(true);
+            setBrandName(data.store.name);
+            setSlug(data.store.slug);
+            setLogoPreview(data.store.logo_url);
+            setStep('done');
+            setBooting(false);
             return;
           }
           setMe(data);
@@ -183,7 +188,7 @@ export function LibraryOnboardingHome() {
 
     setUnlocked(!!getSetupToken());
     setBooting(false);
-  }, [router]);
+  }, []);
 
   async function onUnlock(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -331,9 +336,12 @@ export function LibraryOnboardingHome() {
       } catch {
         /* ignore */
       }
-      router.replace('/library/dashboard');
+      const data = await fetchLibraryMe();
+      setMe(data);
+      setStep('done');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'تعذّر الإنهاء');
+    } finally {
       setLoading(false);
     }
   }
@@ -385,8 +393,6 @@ export function LibraryOnboardingHome() {
 
           <div className="setup-lock-foot">
             <a href="/al-noor">متجر العملاء</a>
-            <span aria-hidden>·</span>
-            <a href="/library">إدارة مكتبة</a>
           </div>
         </div>
       </div>
@@ -394,6 +400,89 @@ export function LibraryOnboardingHome() {
   }
 
   const creating = !me;
+  if (step === 'done') {
+    if (!me) {
+      return (
+        <div className="page-shell">
+          <div className="page-content setup-boot">جاري التحميل…</div>
+        </div>
+      );
+    }
+    const shopPath = me.store.customer_shop_path || `/${me.store.slug}`;
+    const shopHost =
+      typeof window !== 'undefined' ? window.location.host : 'omsp-web.onrender.com';
+    return (
+      <div className="page-shell">
+        <div className="page-content setup-flow">
+          <header className="setup-flow-head">
+            <div className="setup-flow-head-row">
+              <TibaaBrand variant="icon" size="sm" className="shrink-0 !h-12 !w-12" />
+              <div className="min-w-0 flex-1">
+                <p className="setup-flow-kicker">{TIBAA.nameAr} · تم الإعداد</p>
+                <h1 className="setup-flow-title truncate">{me.store.name}</h1>
+              </div>
+            </div>
+          </header>
+
+          <div className="setup-flow-body animate-fade-in-up">
+            <section className="setup-section">
+              <h2 className="setup-section-title">المكتبة جاهزة</h2>
+              <p className="setup-section-sub">
+                أكمل من تطبيق سطح المكتب: اربط واتساب OTP ثم سجّل دخول الجهاز بمعرّف المكتبة وكلمة مرور الجهاز.
+              </p>
+              <div className="setup-review-card">
+                <dl className="setup-review-list">
+                  <div>
+                    <dt>معرّف المكتبة (slug)</dt>
+                    <dd dir="ltr">{me.store.slug}</dd>
+                  </div>
+                  <div>
+                    <dt>رابط العملاء</dt>
+                    <dd>
+                      <a
+                        href={shopPath}
+                        className="text-[var(--admin-info,#3b82f6)] underline-offset-2 hover:underline"
+                        dir="ltr"
+                      >
+                        {shopHost}
+                        {shopPath}
+                      </a>
+                    </dd>
+                  </div>
+                </dl>
+              </div>
+              <ol className="setup-section-sub mt-4 list-decimal space-y-2 pe-5 text-start">
+                <li>ثبّت وافتح تطبيق المكتبة على جهاز الكاونتر</li>
+                <li>من الإعدادات اربط بوت واتساب OTP (كلمة مرور الإعداد)</li>
+                <li>
+                  سجّل الدخول: المعرّف <span dir="ltr">{me.store.slug}</span> + كلمة مرور الجهاز
+                </li>
+              </ol>
+              {credentials ? (
+                <div className="setup-review-card mt-3">
+                  <p className="setup-section-title" style={{ fontSize: '1rem' }}>
+                    بيانات المالك (احتياطي)
+                  </p>
+                  <p className="setup-section-sub">احفظها في مكان آمن — الإدارة اليومية عبر التطبيق</p>
+                  <dl className="setup-review-list">
+                    <div>
+                      <dt>البريد</dt>
+                      <dd dir="ltr">{credentials.email}</dd>
+                    </div>
+                    <div>
+                      <dt>كلمة المرور</dt>
+                      <dd dir="ltr">{credentials.password}</dd>
+                    </div>
+                  </dl>
+                </div>
+              ) : null}
+            </section>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const stepMeta = STEPS.find((s) => s.id === step)!;
 
   return (
@@ -695,10 +784,10 @@ export function LibraryOnboardingHome() {
                 {credentials && (
                   <div className="setup-review-card mt-3">
                     <p className="setup-section-title" style={{ fontSize: '1rem' }}>
-                      بيانات الدخول للوحة الإدارة
+                      بيانات المالك (احتياطي)
                     </p>
                     <p className="setup-section-sub">
-                      احفظها الآن — ستحتاجها للدخول لاحقاً من /library
+                      احفظها في مكان آمن — الإدارة اليومية عبر تطبيق سطح المكتب
                     </p>
                     <dl className="setup-review-list">
                       <div>
@@ -741,7 +830,7 @@ export function LibraryOnboardingHome() {
               disabled={loading}
               onClick={finish}
             >
-              {loading ? 'جارٍ…' : 'إنهاء وفتح لوحة الإدارة'}
+              {loading ? 'جارٍ…' : 'إنهاء والانتقال للتطبيق'}
             </button>
           ) : (
             <button

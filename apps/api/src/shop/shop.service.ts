@@ -13,7 +13,13 @@ import {
   PaymentMethod,
   PrismaClient,
 } from '@omsp/database';
-import { formatOMR } from '@omsp/shared';
+import {
+  formatOMR,
+  getPhoneErrorMessageAr,
+  isValidPhone,
+  normalizePhone,
+} from '@omsp/shared';
+import { hashPassword } from '../common/password';
 import { PRISMA } from '../prisma/prisma.module';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrintingService } from '../printing/printing.service';
@@ -485,6 +491,86 @@ export class ShopService {
         failure_reason: j.failureReason,
       })),
     };
+  }
+
+  async updateStore(
+    storeId: string,
+    deviceId: string,
+    body: {
+      name?: string;
+      phone?: string | null;
+      governorate?: string | null;
+      wilayat?: string | null;
+      area?: string | null;
+      address?: string | null;
+      latitude?: number | null;
+      longitude?: number | null;
+    },
+  ) {
+    const data: Record<string, unknown> = {};
+    if (body.name !== undefined) {
+      const name = body.name.trim();
+      if (!name) throw new BadRequestException('اسم المكتبة مطلوب');
+      data.name = name;
+    }
+    if (body.phone !== undefined) {
+      data.phone = body.phone ? this.requirePhone(body.phone) : null;
+    }
+    if (body.governorate !== undefined) data.governorate = body.governorate?.trim() || null;
+    if (body.wilayat !== undefined) data.wilayat = body.wilayat?.trim() || null;
+    if (body.area !== undefined) data.area = body.area?.trim() || null;
+    if (body.address !== undefined) data.address = body.address?.trim() || null;
+    if (body.latitude !== undefined) data.latitude = body.latitude;
+    if (body.longitude !== undefined) data.longitude = body.longitude;
+
+    if (Object.keys(data).length === 0) {
+      throw new BadRequestException('لا توجد بيانات للتحديث');
+    }
+
+    try {
+      await this.db.store.update({ where: { id: storeId }, data });
+    } catch (err) {
+      console.error('[shop.updateStore] database error:', err);
+      throw new BadRequestException('تعذر تحديث بيانات المكتبة');
+    }
+
+    return this.getMe(storeId, deviceId);
+  }
+
+  async setDeviceSecurity(
+    storeId: string,
+    deviceId: string,
+    body: { device_password: string; device_confirm_phone: string },
+  ) {
+    if ((body.device_password ?? '').length < 6) {
+      throw new BadRequestException('كلمة مرور الجهاز يجب أن تكون 6 أحرف على الأقل');
+    }
+    const phone = this.requirePhone(body.device_confirm_phone);
+
+    try {
+      await this.db.store.update({
+        where: { id: storeId },
+        data: {
+          devicePasswordHash: hashPassword(body.device_password),
+          deviceConfirmPhone: phone,
+        },
+      });
+    } catch (err) {
+      console.error('[shop.setDeviceSecurity] database error:', err);
+      throw new BadRequestException('تعذر حفظ إعدادات أمان الجهاز');
+    }
+
+    return this.getMe(storeId, deviceId);
+  }
+
+  private requirePhone(phoneRaw: string): string {
+    const message = getPhoneErrorMessageAr(phoneRaw, { required: true });
+    if (message || !isValidPhone(phoneRaw)) {
+      throw new BadRequestException(
+        message ?? 'رقم الهاتف غير صالح. اختر الدولة وأدخل الرقم بشكل صحيح',
+      );
+    }
+    return normalizePhone(phoneRaw)!;
   }
 
   private async getOrder(storeId: string, orderId: string) {

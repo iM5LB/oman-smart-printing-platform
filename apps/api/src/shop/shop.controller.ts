@@ -5,6 +5,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Query,
   Req,
   UseGuards,
@@ -29,6 +30,34 @@ export class ShopController {
   me(@Req() req: DeviceRequest) {
     const { device, store } = req[DEVICE_STORE_KEY];
     return this.shop.getMe(store.id, device.id);
+  }
+
+  @Patch('store')
+  updateStore(
+    @Req() req: DeviceRequest,
+    @Body()
+    body: {
+      name?: string;
+      phone?: string | null;
+      governorate?: string | null;
+      wilayat?: string | null;
+      area?: string | null;
+      address?: string | null;
+      latitude?: number | null;
+      longitude?: number | null;
+    },
+  ) {
+    const { device, store } = req[DEVICE_STORE_KEY];
+    return this.shop.updateStore(store.id, device.id, body ?? {});
+  }
+
+  @Put('store/device-security')
+  setDeviceSecurity(
+    @Req() req: DeviceRequest,
+    @Body() body: { device_password: string; device_confirm_phone: string },
+  ) {
+    const { device, store } = req[DEVICE_STORE_KEY];
+    return this.shop.setDeviceSecurity(store.id, device.id, body);
   }
 
   @Get('orders')

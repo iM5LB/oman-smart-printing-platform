@@ -331,6 +331,31 @@ export const shopApi = {
     };
   },
   me: (token: string) => request<ShopMe>("/shop/me", token),
+  updateStore: (
+    token: string,
+    body: {
+      name?: string;
+      phone?: string | null;
+      governorate?: string | null;
+      wilayat?: string | null;
+      area?: string | null;
+      address?: string | null;
+      latitude?: number | null;
+      longitude?: number | null;
+    },
+  ) =>
+    request<ShopMe>("/shop/store", token, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  setDeviceSecurity: (
+    token: string,
+    body: { device_password: string; device_confirm_phone: string },
+  ) =>
+    request<ShopMe>("/shop/store/device-security", token, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
   stats: (token: string) => request<ShopStats>("/shop/stats", token),
   orders: (token: string, status = "active") =>
     request<ShopOrder[]>(`/shop/orders?status=${encodeURIComponent(status)}`, token),
@@ -360,4 +385,54 @@ export const shopApi = {
       method: "POST",
       body: JSON.stringify({ method }),
     }),
+};
+
+export type OtpBotStatus = {
+  provider: string;
+  status: "disconnected" | "qr" | "connecting" | "ready" | string;
+  detail: string;
+  connected_user: string | null;
+  has_qr: boolean;
+  session_path?: string;
+  warning?: string;
+};
+
+async function otpBotFetch<T>(
+  path: string,
+  setupPassword: string,
+  opts?: { method?: string; refresh?: boolean },
+): Promise<T> {
+  const qs = new URLSearchParams();
+  if (opts?.refresh) qs.set("refresh", "1");
+  const q = qs.toString();
+  const url = `${apiUrl()}/otp-bot${path}${q ? `?${q}` : ""}`;
+  let res: Response;
+  try {
+    res = await httpFetch(url, {
+      method: opts?.method ?? "GET",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Setup-Password": setupPassword,
+      },
+    });
+  } catch (err) {
+    throw mapFetchError(err);
+  }
+  if (!res.ok) throw new Error(await parseErrorMessage(res));
+  if (res.status === 204) return undefined as T;
+  return (await res.json()) as T;
+}
+
+/** WhatsApp QR bot — protected by LIBRARY_SETUP_PASSWORD. */
+export const otpBotApi = {
+  status: (setupPassword: string) =>
+    otpBotFetch<OtpBotStatus>("/status", setupPassword),
+  qr: (setupPassword: string, refresh = false) =>
+    otpBotFetch<{
+      status: string;
+      qr_data_url: string | null;
+      detail: string;
+    }>("/qr", setupPassword, { refresh }),
+  logout: (setupPassword: string) =>
+    otpBotFetch<{ ok: boolean }>("/logout", setupPassword, { method: "POST" }),
 };

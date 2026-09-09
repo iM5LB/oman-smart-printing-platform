@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { useAuth } from "../lib/auth";
 import { getApiBase, getCustomerShopUrl, formatCleanUrl, shopApi } from "../lib/api";
 import {
@@ -8,10 +8,11 @@ import {
   isTauri,
   type InstallProgress,
 } from "../lib/updates";
-import { Badge, Button, Panel } from "../components/ui";
+import { Badge, Button, Input, Panel } from "../components/ui";
 import { Icons } from "../components/icons";
 import { PageHeading } from "../components/PageHeading";
 import { ShopUrlQrDialog } from "../components/ShopUrlQrDialog";
+import { WhatsAppBotPanel } from "../components/WhatsAppBotPanel";
 import {
   deviceStatusAr,
   fileRetentionAr,
@@ -133,6 +134,9 @@ export function SettingsPage() {
     null,
   );
   const [shopQrOpen, setShopQrOpen] = useState(false);
+  const [saveMsg, setSaveMsg] = useState<string | null>(null);
+  const [saveErr, setSaveErr] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   const store = me?.store;
   const device = me?.device;
@@ -145,6 +149,27 @@ export function SettingsPage() {
   const shopUrl = getCustomerShopUrl(store);
   const today = new Date().getDay();
   const omanToday = (today + 1) % 7;
+
+  const [editName, setEditName] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [editGov, setEditGov] = useState("");
+  const [editWilayat, setEditWilayat] = useState("");
+  const [editArea, setEditArea] = useState("");
+  const [editAddress, setEditAddress] = useState("");
+  const [devicePassword, setDevicePassword] = useState("");
+  const [devicePasswordConfirm, setDevicePasswordConfirm] = useState("");
+  const [deviceConfirmPhone, setDeviceConfirmPhone] = useState("");
+
+  useEffect(() => {
+    if (!store) return;
+    setEditName(store.name ?? "");
+    setEditPhone(store.phone ?? "");
+    setEditGov(store.governorate ?? "");
+    setEditWilayat(store.wilayat ?? "");
+    setEditArea(store.area ?? "");
+    setEditAddress(store.address ?? "");
+    setDeviceConfirmPhone(store.device_confirm_phone ?? "");
+  }, [store]);
 
   useEffect(() => {
     if (!token) {
@@ -178,6 +203,60 @@ export function SettingsPage() {
       setOnline(false);
     } finally {
       setBusy(false);
+    }
+  };
+
+  const saveStore = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!token) return;
+    setSaving(true);
+    setSaveErr(null);
+    setSaveMsg(null);
+    try {
+      await shopApi.updateStore(token, {
+        name: editName.trim(),
+        phone: editPhone.trim() || null,
+        governorate: editGov.trim() || null,
+        wilayat: editWilayat.trim() || null,
+        area: editArea.trim() || null,
+        address: editAddress.trim() || null,
+      });
+      await refreshMe();
+      setSaveMsg("تم حفظ بيانات المكتبة");
+    } catch (err) {
+      setSaveErr(err instanceof Error ? err.message : "فشل الحفظ");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const saveDeviceSecurity = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!token) return;
+    if (devicePassword.length < 6) {
+      setSaveErr("كلمة مرور الجهاز يجب أن تكون 6 أحرف على الأقل");
+      return;
+    }
+    if (devicePassword !== devicePasswordConfirm) {
+      setSaveErr("كلمتا مرور الجهاز غير متطابقتين");
+      return;
+    }
+    setSaving(true);
+    setSaveErr(null);
+    setSaveMsg(null);
+    try {
+      await shopApi.setDeviceSecurity(token, {
+        device_password: devicePassword,
+        device_confirm_phone: deviceConfirmPhone.trim(),
+      });
+      setDevicePassword("");
+      setDevicePasswordConfirm("");
+      await refreshMe();
+      setSaveMsg("تم حفظ أمان الجهاز");
+    } catch (err) {
+      setSaveErr(err instanceof Error ? err.message : "فشل الحفظ");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -243,7 +322,7 @@ export function SettingsPage() {
       <PageHeading
         icon={Icons.home({ size: 22 })}
         title="المعلومات"
-        description="بيانات المكتبة من الموقع ومعلومات التطبيق"
+        description="إدارة المكتبة وربط واتساب OTP من التطبيق"
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <Button
@@ -513,10 +592,100 @@ export function SettingsPage() {
                 </p>
               </div>
             </div>
-            <p className="text-center text-caption text-text-muted">
-              البيانات تُزامَن من لوحة الموقع · التغييرات تظهر بعد التحديث
-            </p>
           </div>
+        </Panel>
+      </div>
+
+      <div className="grid min-h-0 shrink-0 grid-cols-1 gap-2.5 lg:grid-cols-2">
+        <Panel className="overflow-hidden">
+          <SectionTitle title="تعديل المكتبة" icon={Icons.settings({ size: 14 })} />
+          <form className="space-y-2 p-3" onSubmit={(e) => void saveStore(e)}>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <label className="block space-y-1">
+                <span className="text-caption text-text-muted">الاسم</span>
+                <Input value={editName} onChange={(e) => setEditName(e.target.value)} required />
+              </label>
+              <label className="block space-y-1">
+                <span className="text-caption text-text-muted">الهاتف</span>
+                <Input
+                  dir="ltr"
+                  value={editPhone}
+                  onChange={(e) => setEditPhone(e.target.value)}
+                  placeholder="+968…"
+                />
+              </label>
+              <label className="block space-y-1">
+                <span className="text-caption text-text-muted">المحافظة</span>
+                <Input value={editGov} onChange={(e) => setEditGov(e.target.value)} />
+              </label>
+              <label className="block space-y-1">
+                <span className="text-caption text-text-muted">الولاية</span>
+                <Input value={editWilayat} onChange={(e) => setEditWilayat(e.target.value)} />
+              </label>
+              <label className="block space-y-1">
+                <span className="text-caption text-text-muted">المنطقة</span>
+                <Input value={editArea} onChange={(e) => setEditArea(e.target.value)} />
+              </label>
+              <label className="block space-y-1">
+                <span className="text-caption text-text-muted">العنوان</span>
+                <Input value={editAddress} onChange={(e) => setEditAddress(e.target.value)} />
+              </label>
+            </div>
+            <Button type="submit" disabled={saving || !token} className="w-full sm:w-auto">
+              {saving ? "جاري الحفظ…" : "حفظ بيانات المكتبة"}
+            </Button>
+          </form>
+
+          <div className="border-t border-border-default">
+            <SectionTitle title="أمان الجهاز" icon={Icons.settings({ size: 14 })} />
+            <form className="space-y-2 p-3" onSubmit={(e) => void saveDeviceSecurity(e)}>
+              <label className="block space-y-1">
+                <span className="text-caption text-text-muted">هاتف تأكيد OTP</span>
+                <Input
+                  dir="ltr"
+                  value={deviceConfirmPhone}
+                  onChange={(e) => setDeviceConfirmPhone(e.target.value)}
+                  placeholder="+968…"
+                  required
+                />
+              </label>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <label className="block space-y-1">
+                  <span className="text-caption text-text-muted">كلمة مرور الجهاز الجديدة</span>
+                  <Input
+                    type="password"
+                    dir="ltr"
+                    value={devicePassword}
+                    onChange={(e) => setDevicePassword(e.target.value)}
+                    minLength={6}
+                    required
+                  />
+                </label>
+                <label className="block space-y-1">
+                  <span className="text-caption text-text-muted">تأكيد كلمة المرور</span>
+                  <Input
+                    type="password"
+                    dir="ltr"
+                    value={devicePasswordConfirm}
+                    onChange={(e) => setDevicePasswordConfirm(e.target.value)}
+                    minLength={6}
+                    required
+                  />
+                </label>
+              </div>
+              <Button type="submit" disabled={saving || !token} className="w-full sm:w-auto">
+                {saving ? "جاري الحفظ…" : "حفظ أمان الجهاز"}
+              </Button>
+            </form>
+          </div>
+
+          {saveMsg ? <p className="px-3 pb-3 text-meta text-success">{saveMsg}</p> : null}
+          {saveErr ? <p className="px-3 pb-3 text-meta text-danger">{saveErr}</p> : null}
+        </Panel>
+
+        <Panel className="overflow-hidden">
+          <SectionTitle title="بوت واتساب OTP" icon={Icons.phone({ size: 14 })} />
+          <WhatsAppBotPanel />
         </Panel>
       </div>
 

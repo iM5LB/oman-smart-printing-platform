@@ -2,12 +2,15 @@ import { config } from 'dotenv';
 import { resolve } from 'path';
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
+import { json, urlencoded } from 'express';
 import { AppModule } from './app.module';
 
 config({ path: resolve(__dirname, '../../../.env') });
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  app.use(json({ limit: '2mb' }));
+  app.use(urlencoded({ extended: true }));
 
   const isProd = process.env.NODE_ENV === 'production';
   const allowLocalhostCors =
