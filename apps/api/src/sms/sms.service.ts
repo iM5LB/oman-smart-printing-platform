@@ -1,10 +1,11 @@
 import { Injectable, type OnModuleInit } from '@nestjs/common';
 import { normalizePhone } from '@omsp/shared';
 import { TwilioSmsClient } from './twilio-sms.client';
+import { WhatsAppBaileysClient } from './whatsapp-baileys.client';
 import { WhatsAppCloudClient } from './whatsapp-cloud.client';
 
-/** Production: `twilio` (SMS). Optional: `whatsapp` (Meta). Local: `mock`. */
-export type OtpProviderName = 'mock' | 'twilio' | 'whatsapp';
+/** Production default: `baileys` (WhatsApp QR bot). Also: twilio | whatsapp | mock. */
+export type OtpProviderName = 'mock' | 'baileys' | 'twilio' | 'whatsapp';
 export type SmsProviderName = OtpProviderName;
 export type SmsOtpPurpose = 'login' | 'device_pairing';
 
@@ -13,31 +14,38 @@ export class SmsService implements OnModuleInit {
   constructor(
     private readonly twilio: TwilioSmsClient,
     private readonly whatsapp: WhatsAppCloudClient,
+    private readonly baileys: WhatsAppBaileysClient,
   ) {}
 
   onModuleInit(): void {
     const provider = this.getProvider();
     if (process.env.NODE_ENV === 'production' && provider === 'mock') {
       console.warn(
-        '[otp] production is using mock OTP. Set SMS_PROVIDER=twilio (recommended) or whatsapp.',
+        '[otp] production is using mock OTP. Set SMS_PROVIDER=baileys (QR WhatsApp bot) or twilio.',
       );
     }
     if (provider === 'twilio' && !this.twilio.isConfigured()) {
       console.warn(
-        '[otp] SMS_PROVIDER=twilio but Twilio env vars are incomplete (TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER).',
+        '[otp] SMS_PROVIDER=twilio but Twilio env vars are incomplete.',
       );
     }
-    logWhatsAppConfigSanity(provider);
+    if (provider === 'baileys') {
+      console.log(
+        '[otp] using WhatsApp QR bot (Baileys). Link at GET /api/v1/otp-bot/link?password=...',
+      );
+    }
+    logWhatsAppCloudConfigSanity(provider);
   }
 
   getProvider(): OtpProviderName {
     const raw = (process.env.SMS_PROVIDER ?? process.env.OTP_PROVIDER ?? 'mock')
       .toLowerCase()
       .trim();
+    if (raw === 'baileys' || raw === 'whatsapp-qr' || raw === 'qr') return 'baileys';
     if (raw === 'twilio' || raw === 'sms') return 'twilio';
-    if (raw === 'whatsapp') return 'whatsapp';
+    if (raw === 'whatsapp' || raw === 'whatsapp-cloud') return 'whatsapp';
     if (raw === 'mock' || !raw) return 'mock';
-    console.warn(`[otp] unsupported provider "${raw}". Use mock | twilio | whatsapp`);
+    console.warn(`[otp] unsupported provider "${raw}". Use mock | baileys | twilio | whatsapp`);
     return 'mock';
   }
 
@@ -45,7 +53,6 @@ export class SmsService implements OnModuleInit {
     return this.getProvider() === 'mock';
   }
 
-  /** Mock always returns `dev_code` in non-production. Production never leaks unless OTP_DEV_EXPOSE=true. */
   shouldExposeDevCode(): boolean {
     if (process.env.NODE_ENV === 'production') {
       return process.env.OTP_DEV_EXPOSE === 'true';
@@ -55,7 +62,7 @@ export class SmsService implements OnModuleInit {
 
   otpSentMessage(purpose: SmsOtpPurpose): string {
     const provider = this.getProvider();
-    if (provider === 'whatsapp') {
+    if (provider === 'whatsapp' || provider === 'baileys') {
       return purpose === 'device_pairing'
         ? 'تم إرسال رمز التأكيد عبر واتساب إلى رقم هاتف المكتبة المسجّل'
         : 'تم إرسال رمز التحقق عبر واتساب';
@@ -70,7 +77,6 @@ export class SmsService implements OnModuleInit {
       : 'تم إنشاء رمز التحقق (وضع التطوير — راجع سجل الخادم)';
   }
 
-  /** Recipient is the customer or library confirm phone. Never rewrite to the business sender line. */
   async sendOtp(phone: string, code: string, purpose: SmsOtpPurpose): Promise<void> {
     const text =
       purpose === 'device_pairing'
@@ -81,6 +87,12 @@ export class SmsService implements OnModuleInit {
 
     if (provider === 'mock') {
       console.log(`[otp mock] To ${phone}: ${text}`);
+      return;
+    }
+
+    if (provider === 'baileys') {
+      const id = await this.baileys.sendText(phone, text);
+      console.log(`[baileys] OTP sent purpose=${purpose} to ${phone} id=${id ?? 'n/a'}`);
       return;
     }
 
@@ -107,56 +119,35 @@ export class SmsService implements OnModuleInit {
       return { ok: true };
     }
 
+    if (provider === 'baileys') {
+      const id = await this.baileys.sendText(phone, text);
+      return { ok: true, providerMessageId: id };
+    }
+
     if (provider === 'twilio') {
       const sid = await this.twilio.sendSms(phone, text);
-      console.log(`[twilio] order-ready sent to ${phone} sid=${sid ?? 'n/a'}`);
       return { ok: true, providerMessageId: sid };
     }
 
     if (!this.whatsapp.hasOrderReadyTemplate()) {
-      console.warn(
-        '[whatsapp] order-ready skipped: set WHATSAPP_ORDER_READY_TEMPLATE_NAME to enable',
-      );
       return { ok: false, skipped: true };
     }
 
     const providerMessageId = await this.whatsapp.sendOrderReady(phone, orderNumber, storeName);
-    console.log(`[whatsapp] order-ready sent to ${phone} id=${providerMessageId ?? 'n/a'}`);
     return { ok: true, providerMessageId };
   }
 }
 
-function logWhatsAppConfigSanity(provider: OtpProviderName): void {
+function logWhatsAppCloudConfigSanity(provider: OtpProviderName): void {
   if (provider !== 'whatsapp') return;
-
+  if (!process.env.WHATSAPP_PHONE_NUMBER_ID?.trim()) {
+    console.warn('[whatsapp] WHATSAPP_PHONE_NUMBER_ID is empty.');
+  }
+  if (!process.env.WHATSAPP_TOKEN?.trim()) {
+    console.warn('[whatsapp] WHATSAPP_TOKEN is empty.');
+  }
   const businessRaw = process.env.WHATSAPP_BUSINESS_NUMBER?.trim();
-  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID?.trim();
-  const token = process.env.WHATSAPP_TOKEN?.trim();
-
-  if (businessRaw) {
-    const normalized = normalizePhone(businessRaw);
-    if (!normalized) {
-      console.warn(
-        '[whatsapp] WHATSAPP_BUSINESS_NUMBER is set but is not a valid phone (use E.164, e.g. +96876655365)',
-      );
-    } else {
-      console.log(
-        `[whatsapp] sender line ${maskPhone(normalized)} must be registered in Meta WhatsApp Manager.`,
-      );
-    }
+  if (businessRaw && !normalizePhone(businessRaw)) {
+    console.warn('[whatsapp] WHATSAPP_BUSINESS_NUMBER is invalid.');
   }
-
-  if (!phoneNumberId) {
-    console.warn(
-      '[whatsapp] SMS_PROVIDER=whatsapp but WHATSAPP_PHONE_NUMBER_ID is empty.',
-    );
-  }
-  if (!token) {
-    console.warn('[whatsapp] SMS_PROVIDER=whatsapp but WHATSAPP_TOKEN is empty.');
-  }
-}
-
-function maskPhone(e164: string): string {
-  if (e164.length < 6) return e164;
-  return `${e164.slice(0, 4)}****${e164.slice(-2)}`;
 }

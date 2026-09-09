@@ -49,6 +49,7 @@ desktop.ini
 .data/
 **/.data/
 apps/api/.data/
+**/whatsapp-session/
 
 # Prisma
 packages/database/prisma/migrations/**/migration_lock.toml

@@ -39,9 +39,12 @@ services:
         value: 7d
       - key: PAYMENT_PROVIDER
         value: mock
-      # Production OTP: Twilio SMS (set TWILIO_* secrets in dashboard). Optional: SMS_PROVIDER=whatsapp later.
+      # OTP: WhatsApp QR bot (Baileys). Link once: /api/v1/otp-bot/link?password=LIBRARY_SETUP_PASSWORD
+      # Persist WHATSAPP_SESSION_PATH (Render disk) or you must re-scan QR after restarts.
       - key: SMS_PROVIDER
-        value: twilio
+        value: baileys
+      - key: WHATSAPP_SESSION_PATH
+        value: /opt/render/project/src/apps/api/.data/whatsapp-session
       - key: TWILIO_ACCOUNT_SID
         sync: false
       - key: TWILIO_AUTH_TOKEN
