@@ -7,7 +7,10 @@ import {
 import { mkdirSync } from 'fs';
 import { join } from 'path';
 import { formatPhoneForWhatsApp, normalizePhone } from '@omsp/shared';
-import QRCode from 'qrcode';
+import * as QRCodeImport from 'qrcode';
+
+/** CJS/ESM interop — `import QRCode from 'qrcode'` is undefined under Nest CommonJS on Render. */
+const QRCode = (QRCodeImport as { default?: typeof QRCodeImport }).default ?? QRCodeImport;
 
 type WaSocket = {
   sendMessage: (
@@ -216,9 +219,15 @@ export class WhatsAppBaileysClient implements OnModuleInit, OnModuleDestroy {
         this.latestQr = update.qr;
         this.status = 'qr';
         this.statusDetail = 'scan QR with WhatsApp → Linked devices';
-        void QRCode.toDataURL(update.qr, { width: 280, margin: 2 }).then((url) => {
-          this.latestQrDataUrl = url;
-        });
+        void Promise.resolve()
+          .then(() => QRCode.toDataURL(update.qr!, { width: 280, margin: 2 }))
+          .then((url) => {
+            this.latestQrDataUrl = url;
+          })
+          .catch((err) => {
+            console.error('[baileys] QR image encode failed:', err);
+            this.latestQrDataUrl = null;
+          });
         console.log('[baileys] QR ready — open /api/v1/otp-bot/link to scan');
       }
 
