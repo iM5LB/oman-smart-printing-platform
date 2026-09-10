@@ -9,21 +9,21 @@ export const metadata = {
 
 export default function TermsPage() {
   return (
-    <div className="page-shell shell-home">
+    <div className="page-shell page-shell-wide shell-home">
       <div className="page-content flex min-h-0 flex-col">
-        <header className="shrink-0 border-b border-border bg-surface px-4 py-4">
-          <div className="mx-auto flex max-w-2xl items-center justify-between gap-3">
+        <header className="shrink-0 border-b border-border bg-surface px-4 py-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between gap-3">
             <Link href="/" className="shrink-0">
               <TibaaBrand variant="icon" size="sm" className="!h-10 !w-10" />
             </Link>
-            <h1 className="text-base font-bold">الشروط والأحكام</h1>
+            <h1 className="text-base font-bold sm:text-lg">الشروط والأحكام</h1>
             <Link href="/" className="text-sm text-primary hover:underline">
               الرئيسية
             </Link>
           </div>
         </header>
-        <main className="min-h-0 flex-1 overflow-y-auto px-4 py-6">
-          <article className="mx-auto max-w-2xl space-y-5 text-sm leading-7 text-text">
+        <main className="min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8">
+          <article className="mx-auto max-w-3xl space-y-5 text-sm leading-7 text-text sm:text-base sm:leading-8">
             <p className="text-text-muted">آخر تحديث: سبتمبر 2026</p>
             <section className="space-y-2">
               <h2 className="text-base font-bold">1. قبول الشروط</h2>

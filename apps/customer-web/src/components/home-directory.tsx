@@ -42,113 +42,116 @@ export function HomeDirectory() {
   }, [deferredQuery]);
 
   return (
-    <div className="page-shell shell-home">
+    <div className="page-shell page-shell-wide shell-home">
       <div className="page-content flex min-h-0 flex-col">
-        <header className="shrink-0 border-b border-border/70 bg-surface/80 px-4 pb-4 pt-5 backdrop-blur-sm">
-          <div className="mx-auto flex max-w-2xl flex-col items-center gap-3 text-center">
-            <TibaaBrand variant="lockup" size="md" showTagline />
-            <Link href="/onboarding" className="btn-primary btn-compact mt-1 w-full max-w-xs">
-              إعداد مكتبة جديدة
-            </Link>
-          </div>
-
-          <div className="mx-auto mt-5 max-w-2xl">
-            <label className="relative block">
-              <span className="sr-only">بحث عن مكتبة</span>
-              <Search className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-text-muted" />
-              <input
-                type="search"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="ابحث بالاسم أو المنطقة…"
-                className="input-field w-full !ps-10"
-                autoComplete="off"
-              />
-            </label>
+        <header className="shrink-0 border-b border-border/70 bg-surface/90 px-4 py-5 backdrop-blur-sm sm:px-6 lg:px-8">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between lg:gap-8">
+            <div className="flex flex-col items-center gap-3 text-center lg:items-start lg:text-start">
+              <TibaaBrand variant="lockup" size="md" showTagline className="lg:!items-start" />
+            </div>
+            <div className="flex w-full flex-col gap-3 sm:mx-auto sm:max-w-xl lg:mx-0 lg:max-w-md lg:items-stretch">
+              <label className="relative block">
+                <span className="sr-only">بحث عن مكتبة</span>
+                <Search className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-text-muted" />
+                <input
+                  type="search"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="ابحث بالاسم أو المنطقة…"
+                  className="input-field w-full !ps-10"
+                  autoComplete="off"
+                />
+              </label>
+              <Link href="/onboarding" className="btn-primary btn-compact w-full text-center">
+                إعداد مكتبة جديدة
+              </Link>
+            </div>
           </div>
         </header>
 
-        <main className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
-          <div className="mx-auto max-w-2xl">
-            <div className="mb-3 flex items-end justify-between gap-3">
-              <h2 className="text-base font-bold text-text">المكتبات</h2>
-              {!loading ? (
-                <p className="text-xs text-text-muted tabular-nums">{stores.length} مكتبة</p>
-              ) : null}
-            </div>
-
-            {error ? (
-              <p className="rounded-xl border border-error/20 bg-error/5 px-4 py-3 text-sm text-error">
-                {error}
-              </p>
+        <main className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
+          <div className="mb-4 flex items-end justify-between gap-3">
+            <h2 className="text-base font-bold text-text sm:text-lg">المكتبات</h2>
+            {!loading ? (
+              <p className="text-xs text-text-muted tabular-nums sm:text-sm">{stores.length} مكتبة</p>
             ) : null}
-
-            {loading ? (
-              <p className="py-10 text-center text-sm text-text-muted">جاري التحميل…</p>
-            ) : stores.length === 0 ? (
-              <div className="py-12 text-center">
-                <Store className="mx-auto size-10 text-text-muted/50" />
-                <p className="mt-3 text-sm font-medium text-text">لا توجد مكتبات مطابقة</p>
-                <p className="mt-1 text-xs text-text-muted">جرّب بحثاً آخر أو سجّل مكتبتك</p>
-              </div>
-            ) : (
-              <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-surface">
-                {stores.map((store, i) => (
-                  <li key={store.slug} className="animate-fade-in-up" style={{ animationDelay: `${Math.min(i, 8) * 40}ms` }}>
-                    <Link
-                      href={`/${store.slug}`}
-                      className="flex items-center gap-3 px-3.5 py-3 transition-colors hover:bg-accent/50"
-                    >
-                      <div className="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border bg-background">
-                        {store.logo_url ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={store.logo_url}
-                            alt=""
-                            className="size-full object-cover"
-                          />
-                        ) : (
-                          <Store className="size-5 text-primary/70" />
-                        )}
-                      </div>
-                      <div className="min-w-0 flex-1 text-start">
-                        <div className="flex items-center gap-2">
-                          <p className="truncate text-sm font-bold text-text">{store.name}</p>
-                          <span
-                            className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                              store.is_open
-                                ? 'bg-success/10 text-success'
-                                : 'bg-text-muted/10 text-text-muted'
-                            }`}
-                          >
-                            {store.is_open ? 'مفتوح' : 'مغلق'}
-                          </span>
-                        </div>
-                        {store.location_label ? (
-                          <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-text-muted">
-                            <MapPin className="size-3 shrink-0" />
-                            <span className="truncate">{store.location_label}</span>
-                          </p>
-                        ) : (
-                          <p className="mt-0.5 text-xs text-text-muted" dir="ltr">
-                            /{store.slug}
-                          </p>
-                        )}
-                      </div>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            )}
           </div>
+
+          {error ? (
+            <p className="rounded-xl border border-error/20 bg-error/5 px-4 py-3 text-sm text-error">
+              {error}
+            </p>
+          ) : null}
+
+          {loading ? (
+            <p className="py-16 text-center text-sm text-text-muted">جاري التحميل…</p>
+          ) : stores.length === 0 ? (
+            <div className="py-16 text-center">
+              <Store className="mx-auto size-10 text-text-muted/50" />
+              <p className="mt-3 text-sm font-medium text-text">لا توجد مكتبات مطابقة</p>
+              <p className="mt-1 text-xs text-text-muted">جرّب بحثاً آخر أو سجّل مكتبتك</p>
+            </div>
+          ) : (
+            <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {stores.map((store, i) => (
+                <li
+                  key={store.slug}
+                  className="animate-fade-in-up"
+                  style={{ animationDelay: `${Math.min(i, 12) * 35}ms` }}
+                >
+                  <Link
+                    href={`/${store.slug}`}
+                    className="flex h-full items-center gap-3 rounded-2xl border border-border bg-surface px-3.5 py-3.5 shadow-sm transition-all hover:border-primary/25 hover:bg-accent/40 hover:shadow-md"
+                  >
+                    <div className="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border bg-background sm:size-16">
+                      {store.logo_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={store.logo_url}
+                          alt=""
+                          className="size-full object-cover"
+                        />
+                      ) : (
+                        <Store className="size-6 text-primary/70" />
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1 text-start">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="truncate text-sm font-bold text-text sm:text-base">{store.name}</p>
+                        <span
+                          className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                            store.is_open
+                              ? 'bg-success/10 text-success'
+                              : 'bg-text-muted/10 text-text-muted'
+                          }`}
+                        >
+                          {store.is_open ? 'مفتوح' : 'مغلق'}
+                        </span>
+                      </div>
+                      {store.location_label ? (
+                        <p className="mt-1 flex items-center gap-1 text-xs text-text-muted sm:text-sm">
+                          <MapPin className="size-3.5 shrink-0" />
+                          <span className="line-clamp-2">{store.location_label}</span>
+                        </p>
+                      ) : (
+                        <p className="mt-1 text-xs text-text-muted" dir="ltr">
+                          /{store.slug}
+                        </p>
+                      )}
+                    </div>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
         </main>
 
-        <footer className="shrink-0 border-t border-border/70 bg-surface/90 px-4 py-3">
-          <div className="mx-auto flex max-w-2xl flex-col items-center gap-2 text-center sm:flex-row sm:justify-between sm:text-start">
-            <p className="text-xs text-text-muted">
+        <footer className="shrink-0 border-t border-border/70 bg-surface/95 px-4 py-3 sm:px-6 lg:px-8">
+          <div className="flex flex-col items-center gap-2 text-center sm:flex-row sm:justify-between sm:text-start">
+            <p className="text-xs text-text-muted sm:text-sm">
               {TIBAA.nameAr} · {TIBAA.nameEn}
             </p>
-            <nav className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs">
+            <nav className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs sm:text-sm">
               <Link href="/privacy" className="text-text-muted hover:text-primary">
                 سياسة الخصوصية
               </Link>
