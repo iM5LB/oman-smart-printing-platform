@@ -196,15 +196,36 @@ export class StoresService {
   private checkIfOpen(
     hours: Array<{ dayOfWeek: number; openTime: string; closeTime: string; isClosed: boolean }>,
   ): boolean {
-    const now = new Date();
-    // Oman week: 0=Saturday
-    const jsDay = now.getDay();
-    const omanDay = jsDay === 6 ? 0 : jsDay + 1;
+    // Always evaluate against Oman wall-clock time (API may run in UTC on Render).
+    const parts = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Asia/Muscat',
+      weekday: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }).formatToParts(new Date());
+
+    const weekday = parts.find((p) => p.type === 'weekday')?.value ?? '';
+    const hour = parts.find((p) => p.type === 'hour')?.value ?? '00';
+    const minute = parts.find((p) => p.type === 'minute')?.value ?? '00';
+    const currentTime = `${hour.padStart(2, '0')}:${minute.padStart(2, '0')}`;
+
+    // Store hours use Oman week index: 0=Saturday … 6=Friday
+    const weekdayToOmanDay: Record<string, number> = {
+      Sat: 0,
+      Sun: 1,
+      Mon: 2,
+      Tue: 3,
+      Wed: 4,
+      Thu: 5,
+      Fri: 6,
+    };
+    const omanDay = weekdayToOmanDay[weekday];
+    if (omanDay == null) return false;
 
     const today = hours.find((h) => h.dayOfWeek === omanDay);
     if (!today || today.isClosed) return false;
 
-    const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
     return currentTime >= today.openTime && currentTime <= today.closeTime;
   }
 }
