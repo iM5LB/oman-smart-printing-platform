@@ -12,6 +12,24 @@ import {
 import { Type } from 'class-transformer';
 
 export class QuoteItemDto {
+  /** Accepted so the client can POST the same item shape as create. */
+  @IsString()
+  @IsOptional()
+  file_key?: string;
+
+  @IsString()
+  @IsOptional()
+  original_filename?: string;
+
+  @IsOptional()
+  @IsString()
+  mime_type?: string;
+
+  @Type(() => Number)
+  @IsOptional()
+  @IsInt()
+  file_size_bytes?: number;
+
   @Type(() => Number)
   @IsInt()
   @Min(1)
@@ -25,6 +43,10 @@ export class QuoteItemDto {
 
   @IsEnum(['single', 'duplex_long', 'duplex_short'])
   sides!: 'single' | 'duplex_long' | 'duplex_short';
+
+  @IsEnum(['auto', 'portrait', 'landscape'])
+  @IsOptional()
+  orientation?: 'auto' | 'portrait' | 'landscape';
 
   @IsString()
   @IsOptional()

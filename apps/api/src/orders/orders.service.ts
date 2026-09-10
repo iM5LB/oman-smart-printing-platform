@@ -225,6 +225,47 @@ export class OrdersService {
       },
     });
     if (!store) throw new NotFoundException('المكتبة غير موجودة');
+
+    const defaults: Array<{ paperSize: 'A4' | 'A3' | 'A5'; colorMode: 'bw' | 'color' | 'grayscale'; pricePerPage: number }> = [
+      { paperSize: 'A4', colorMode: 'bw', pricePerPage: 20 },
+      { paperSize: 'A4', colorMode: 'color', pricePerPage: 100 },
+      { paperSize: 'A4', colorMode: 'grayscale', pricePerPage: 15 },
+      { paperSize: 'A3', colorMode: 'bw', pricePerPage: 50 },
+      { paperSize: 'A3', colorMode: 'color', pricePerPage: 200 },
+      { paperSize: 'A3', colorMode: 'grayscale', pricePerPage: 40 },
+      { paperSize: 'A5', colorMode: 'bw', pricePerPage: 15 },
+      { paperSize: 'A5', colorMode: 'color', pricePerPage: 80 },
+      { paperSize: 'A5', colorMode: 'grayscale', pricePerPage: 12 },
+    ];
+
+    const missing = defaults.filter(
+      (d) =>
+        !store.pricingRules.some(
+          (r) => r.paperSize === d.paperSize && r.colorMode === d.colorMode,
+        ),
+    );
+
+    if (missing.length) {
+      await this.db.pricingRule.createMany({
+        data: missing.map((d) => ({
+          storeId: store.id,
+          paperSize: d.paperSize,
+          colorMode: d.colorMode,
+          pricePerPage: d.pricePerPage,
+          isActive: true,
+        })),
+        skipDuplicates: true,
+      });
+      const refreshed = await this.db.store.findUnique({
+        where: { id: store.id },
+        include: {
+          pricingRules: { where: { isActive: true } },
+          finishingServices: { where: { isActive: true } },
+        },
+      });
+      if (refreshed) return refreshed;
+    }
+
     return store;
   }
 
@@ -259,9 +300,25 @@ export class OrdersService {
     }>,
   ) {
     const pricedItems = items.map((item) => {
-      const rule = store.pricingRules.find(
-        (r) => r.paperSize === item.paper_size && r.colorMode === item.color_mode,
-      );
+      const rule =
+        store.pricingRules.find(
+          (r) => r.paperSize === item.paper_size && r.colorMode === item.color_mode,
+        ) ??
+        // Fallbacks for stores that predate A5 / grayscale options
+        (item.color_mode === 'grayscale'
+          ? store.pricingRules.find(
+              (r) => r.paperSize === item.paper_size && r.colorMode === 'bw',
+            )
+          : undefined) ??
+        (item.paper_size === 'A5'
+          ? store.pricingRules.find(
+              (r) =>
+                r.paperSize === 'A4' &&
+                (r.colorMode === item.color_mode ||
+                  (item.color_mode === 'grayscale' && r.colorMode === 'bw')),
+            )
+          : undefined);
+
       if (!rule) {
         throw new BadRequestException(
           `لا يوجد سعر لـ ${item.paper_size} ${item.color_mode}`,

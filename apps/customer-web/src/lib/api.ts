@@ -100,10 +100,21 @@ export async function getOrderConfig(storeSlug: string): Promise<OrderConfig> {
 }
 
 export async function quoteOrder(storeSlug: string, items: OrderItemInput[]): Promise<QuoteResult> {
+  // Send only quote fields — avoids 400 when ValidationPipe forbids extras.
+  const quoteItems = items.map((item) => ({
+    page_count: item.page_count,
+    color_mode: item.color_mode,
+    paper_size: item.paper_size,
+    sides: item.sides,
+    orientation: item.orientation,
+    page_range: item.page_range,
+    copies: item.copies,
+    finishing_service_ids: item.finishing_service_ids,
+  }));
   return apiFetch(`/stores/${storeSlug}/orders/quote`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ items }),
+    body: JSON.stringify({ items: quoteItems }),
   });
 }
 

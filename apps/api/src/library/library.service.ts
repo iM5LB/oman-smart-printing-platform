@@ -140,8 +140,13 @@ export class LibraryService {
                     create: [
                       { paperSize: 'A4', colorMode: 'bw', pricePerPage: 20 },
                       { paperSize: 'A4', colorMode: 'color', pricePerPage: 100 },
+                      { paperSize: 'A4', colorMode: 'grayscale', pricePerPage: 15 },
                       { paperSize: 'A3', colorMode: 'bw', pricePerPage: 50 },
                       { paperSize: 'A3', colorMode: 'color', pricePerPage: 200 },
+                      { paperSize: 'A3', colorMode: 'grayscale', pricePerPage: 40 },
+                      { paperSize: 'A5', colorMode: 'bw', pricePerPage: 15 },
+                      { paperSize: 'A5', colorMode: 'color', pricePerPage: 80 },
+                      { paperSize: 'A5', colorMode: 'grayscale', pricePerPage: 12 },
                     ],
                   },
                 },
