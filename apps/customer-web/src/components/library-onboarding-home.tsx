@@ -476,6 +476,43 @@ export function LibraryOnboardingHome() {
                   </dl>
                 </div>
               ) : null}
+              <div className="mt-5 flex flex-col gap-2 sm:flex-row">
+                <a href={shopPath} className="btn-primary flex-1 text-center">
+                  فتح صفحة العملاء
+                </a>
+                <button
+                  type="button"
+                  className="btn-outline flex-1"
+                  onClick={() => {
+                    clearLibraryToken();
+                    clearSetupToken();
+                    try {
+                      sessionStorage.removeItem('omsp_initial_creds');
+                    } catch {
+                      /* ignore */
+                    }
+                    setMe(null);
+                    setCredentials(null);
+                    setBrandName('');
+                    setSlug('');
+                    setSlugTouched(false);
+                    setLogoPreview(null);
+                    setLoc({
+                      governorate: '',
+                      wilayat: '',
+                      area: '',
+                      address: '',
+                      latitude: '',
+                      longitude: '',
+                    });
+                    setStep('brand');
+                    setUnlocked(false);
+                    setError('');
+                  }}
+                >
+                  إعداد مكتبة جديدة
+                </button>
+              </div>
             </section>
           </div>
         </div>

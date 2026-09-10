@@ -1,13 +1,8 @@
 'use client';
 
-import { useCallback, useId, useRef, useState, type Dispatch, type SetStateAction } from 'react';
+import { useCallback, useId, useRef, type Dispatch, type SetStateAction } from 'react';
 import { CloudUpload, FileText, Trash2 } from 'lucide-react';
 import { type SelectedFile, filesFromList, formatFileSize } from '@/lib/files';
-import {
-  FilePreviewDialog,
-  PreviewButton,
-  useObjectUrl,
-} from '@/components/file-preview-dialog';
 
 const ACCEPT = '.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.jpg,.jpeg,.png,.webp';
 
@@ -30,49 +25,34 @@ function FileRow({
   disabled?: boolean;
   onRemove: () => void;
 }) {
-  const objectUrl = useObjectUrl(file.error ? null : file.file);
-  const [previewOpen, setPreviewOpen] = useState(false);
-
   return (
-    <>
-      <li
-        className="file-item flex items-center gap-3 rounded-xl border border-border bg-surface p-3 shadow-sm"
-        style={{ animationDelay: `${index * 60}ms` }}
+    <li
+      className="file-item flex items-center gap-3 rounded-xl border border-border bg-surface p-3 shadow-sm"
+      style={{ animationDelay: `${index * 60}ms` }}
+    >
+      <div
+        className={`flex size-10 shrink-0 items-center justify-center rounded-lg ${
+          file.error ? 'bg-error/10 text-error' : 'bg-primary/10 text-primary'
+        }`}
       >
-        <div
-          className={`flex size-10 shrink-0 items-center justify-center rounded-lg ${
-            file.error ? 'bg-error/10 text-error' : 'bg-primary/10 text-primary'
-          }`}
-        >
-          <FileText className="size-5" />
-        </div>
-        <div className="min-w-0 flex-1 text-start">
-          <p className="truncate text-sm font-semibold">{file.name}</p>
-          <p className={`text-xs ${file.error ? 'text-error' : 'text-text-muted'}`}>
-            {file.error ?? formatFileSize(file.size)}
-          </p>
-        </div>
-        {!file.error && objectUrl ? (
-          <PreviewButton onClick={() => setPreviewOpen(true)} />
-        ) : null}
-        <button
-          type="button"
-          onClick={onRemove}
-          disabled={disabled}
-          className="rounded-lg p-2 text-text-muted transition-colors hover:bg-error/10 hover:text-error disabled:opacity-40"
-          aria-label={`حذف ${file.name}`}
-        >
-          <Trash2 className="size-4" />
-        </button>
-      </li>
-      <FilePreviewDialog
-        open={previewOpen}
-        onClose={() => setPreviewOpen(false)}
-        title={file.name}
-        src={objectUrl}
-        mime={file.type}
-      />
-    </>
+        <FileText className="size-5" />
+      </div>
+      <div className="min-w-0 flex-1 text-start">
+        <p className="truncate text-sm font-semibold">{file.name}</p>
+        <p className={`text-xs ${file.error ? 'text-error' : 'text-text-muted'}`}>
+          {file.error ?? formatFileSize(file.size)}
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={onRemove}
+        disabled={disabled}
+        className="rounded-lg p-2 text-text-muted transition-colors hover:bg-error/10 hover:text-error disabled:opacity-40"
+        aria-label={`حذف ${file.name}`}
+      >
+        <Trash2 className="size-4" />
+      </button>
+    </li>
   );
 }
 

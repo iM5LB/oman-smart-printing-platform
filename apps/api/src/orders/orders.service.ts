@@ -19,10 +19,14 @@ import {
   normalizePhone,
 } from '@omsp/shared';
 import { PRISMA } from '../prisma/prisma.module';
+import { StorageService } from '../storage/storage.service';
 
 @Injectable()
 export class OrdersService {
-  constructor(@Inject(PRISMA) private readonly db: PrismaClient) {}
+  constructor(
+    @Inject(PRISMA) private readonly db: PrismaClient,
+    private readonly storage: StorageService,
+  ) {}
 
   async quote(storeSlug: string, items: Array<{
     page_count: number;
@@ -196,6 +200,12 @@ export class OrdersService {
 
     if (!order) throw new NotFoundException('الطلب غير موجود');
 
+    const apiBase = (
+      process.env.PUBLIC_API_URL ??
+      process.env.API_URL ??
+      'http://localhost:4000'
+    ).replace(/\/$/, '');
+
     return {
       order_number: order.displayNumber,
       status: order.status,
@@ -205,13 +215,20 @@ export class OrdersService {
       store_name: order.store.name,
       store_slug: order.store.slug,
       store_phone: order.store.phone,
-      items: order.items.map((item) => ({
-        filename: item.originalFilename,
-        copies: item.copies,
-        color_mode: item.colorMode,
-        paper_size: item.paperSize,
-        sides: item.sides,
-      })),
+      items: order.items.map((item) => {
+        const fileKey = item.originalFileKey ?? null;
+        return {
+          filename: item.originalFilename,
+          copies: item.copies,
+          color_mode: item.colorMode,
+          paper_size: item.paperSize,
+          sides: item.sides,
+          mime_type: item.mimeType ?? null,
+          file_url: fileKey
+            ? this.storage.getSignedUrl(fileKey, apiBase, 3600, item.originalFilename)
+            : null,
+        };
+      }),
       created_at: order.createdAt.toISOString(),
     };
   }

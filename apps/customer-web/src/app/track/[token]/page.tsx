@@ -1,22 +1,9 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import {
-  COLOR_MODE_AR,
-  ORDER_STATUS_AR,
-  PAPER_SIZE_AR,
-  PAYMENT_STATUS_AR,
-  PRINT_SIDES_AR,
-} from '@omsp/types';
+import { ORDER_STATUS_AR, PAYMENT_STATUS_AR } from '@omsp/types';
 import { StatusTimeline } from '@/components/status-timeline';
+import { TrackFiles, type TrackFileItem } from '@/components/track-files';
 import { getApiBase } from '@/lib/api';
-
-type TrackItem = {
-  filename: string;
-  copies: number;
-  color_mode?: string;
-  paper_size?: string;
-  sides?: string;
-};
 
 type TrackOrder = {
   order_number: string;
@@ -27,7 +14,7 @@ type TrackOrder = {
   store_name: string;
   store_slug?: string;
   store_phone?: string | null;
-  items: TrackItem[];
+  items: TrackFileItem[];
   created_at?: string;
 };
 
@@ -84,26 +71,7 @@ export default async function TrackPage({
             )}
           </div>
 
-          {order.items?.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-xs font-semibold text-text-muted">الملفات</p>
-              {order.items.map((item, i) => (
-                <div key={`${item.filename}-${i}`} className="card space-y-1 p-3 text-sm">
-                  <p className="truncate font-medium">{item.filename}</p>
-                  <p className="text-xs text-text-muted">
-                    {[
-                      `${item.copies} نسخة`,
-                      item.paper_size ? (PAPER_SIZE_AR[item.paper_size] ?? item.paper_size) : null,
-                      item.color_mode ? (COLOR_MODE_AR[item.color_mode] ?? item.color_mode) : null,
-                      item.sides ? (PRINT_SIDES_AR[item.sides] ?? item.sides) : null,
-                    ]
-                      .filter(Boolean)
-                      .join(' · ')}
-                  </p>
-                </div>
-              ))}
-            </div>
-          )}
+          {order.items?.length > 0 ? <TrackFiles items={order.items} /> : null}
         </div>
 
         <div className="fixed-bottom-cta">
