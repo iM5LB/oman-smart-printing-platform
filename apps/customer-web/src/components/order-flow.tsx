@@ -216,11 +216,10 @@ export function OrderFlow({ store }: OrderFlowProps) {
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src="/brand/tibaa-icon.png?v=13"
-                    alt="طباعة"
+                    alt=""
                     className="size-16 rounded-2xl bg-white object-contain p-1 ring-1 ring-black/5"
                   />
                 </div>
-                <p className="mb-1 text-sm font-bold text-[#2E8B7C]">طباعة · Tibaa</p>
                 <h2 className="landing-title">اطبع ملفاتك بسهولة</h2>
                 <p className="landing-sub">ارفع ملفاتك واطلب الطباعة قبل وصولك للمكتبة</p>
               </div>

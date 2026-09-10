@@ -361,8 +361,6 @@ export function LibraryOnboardingHome() {
         <div className="page-content setup-lock animate-fade-in">
           <div className="setup-lock-top">
             <TibaaBrand variant="icon" size="lg" />
-            <p className="setup-lock-brand">{TIBAA.nameAr}</p>
-            <p className="setup-lock-brand-en">{TIBAA.nameEn}</p>
             <h1 className="setup-lock-title">إعداد المكتبة</h1>
             <p className="setup-lock-sub">{TIBAA.taglineAr}</p>
           </div>
