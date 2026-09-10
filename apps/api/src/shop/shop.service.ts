@@ -7,11 +7,14 @@ import {
 } from '@nestjs/common';
 import {
   ColorMode,
+  FileRetentionPolicy,
   InStorePaymentMethod,
   OrderStatus,
   PaperSize,
+  PayAtPickupPrintPolicy,
   PaymentMethod,
   PrismaClient,
+  QueuePriority,
 } from '@omsp/database';
 import {
   formatOMR,
@@ -355,15 +358,43 @@ export class ShopService {
 
   async markReady(storeId: string, orderId: string) {
     const order = await this.getOrder(storeId, orderId);
-    if (!['awaiting_finishing', 'printing', 'queued', 'preparing', 'needs_review'].includes(order.status)) {
-      throw new BadRequestException('لا يمكن تعليم هذا الطلب كجاهز');
+
+    if (order.status === 'awaiting_finishing') {
+      await this.db.order.update({
+        where: { id: orderId },
+        data: { status: 'ready' },
+      });
+      await this.notifications.sendOrderReadySms(orderId);
+      return { success: true, status: 'ready' };
+    }
+
+    if (order.status === 'ready') {
+      return { success: true, status: 'ready' };
+    }
+
+    // Printing must finish (or have no print jobs) before marking ready.
+    const jobs = await this.db.printJob.findMany({ where: { orderId } });
+    if (jobs.length === 0) {
+      throw new BadRequestException(
+        'لم تُطبع أي ملفات بعد. اضغط طباعة أولاً ثم علّم الطلب جاهزاً',
+      );
+    }
+
+    const unfinished = jobs.filter((j) => j.status !== 'completed' && j.status !== 'cancelled');
+    if (unfinished.length > 0) {
+      throw new BadRequestException(
+        'لا يمكن تعليم الطلب جاهزاً قبل اكتمال الطباعة. انتظر انتهاء الطباعة أو أعد المحاولة',
+      );
+    }
+
+    if (!['printing', 'queued', 'needs_review', 'preparing'].includes(order.status)) {
+      throw new BadRequestException('لا يمكن تعليم هذا الطلب كجاهز في حالته الحالية');
     }
 
     await this.db.order.update({
       where: { id: orderId },
       data: { status: 'ready' },
     });
-
     await this.notifications.sendOrderReadySms(orderId);
     return { success: true, status: 'ready' };
   }
@@ -539,7 +570,7 @@ export class ShopService {
           mime_type: i.mimeType ?? null,
           finishing: finishingNames,
           file_url: fileKey
-            ? this.storage.getSignedUrl(fileKey, apiBase, 3600)
+            ? this.storage.getSignedUrl(fileKey, apiBase, 3600, i.originalFilename)
             : null,
         };
       }),
@@ -563,6 +594,11 @@ export class ShopService {
       address?: string | null;
       latitude?: number | null;
       longitude?: number | null;
+      auto_print_paid_orders?: boolean;
+      pay_at_pickup_print_policy?: string;
+      file_retention_policy?: string;
+      paid_orders_priority?: string;
+      tax_rate_bps?: number;
     },
   ) {
     const data: Record<string, unknown> = {};
@@ -580,6 +616,52 @@ export class ShopService {
     if (body.address !== undefined) data.address = body.address?.trim() || null;
     if (body.latitude !== undefined) data.latitude = body.latitude;
     if (body.longitude !== undefined) data.longitude = body.longitude;
+
+    if (body.auto_print_paid_orders !== undefined) {
+      data.autoPrintPaidOrders = Boolean(body.auto_print_paid_orders);
+    }
+
+    if (body.pay_at_pickup_print_policy !== undefined) {
+      const allowed: PayAtPickupPrintPolicy[] = [
+        'auto_print',
+        'require_approval',
+        'print_on_arrival',
+      ];
+      if (!allowed.includes(body.pay_at_pickup_print_policy as PayAtPickupPrintPolicy)) {
+        throw new BadRequestException('سياسة طباعة الدفع عند الاستلام غير صالحة');
+      }
+      data.payAtPickupPrintPolicy = body.pay_at_pickup_print_policy;
+    }
+
+    if (body.file_retention_policy !== undefined) {
+      const allowed: FileRetentionPolicy[] = [
+        'immediate',
+        'one_hour',
+        'twenty_four_hours',
+        'three_days',
+        'seven_days',
+      ];
+      if (!allowed.includes(body.file_retention_policy as FileRetentionPolicy)) {
+        throw new BadRequestException('سياسة احتفاظ الملفات غير صالحة');
+      }
+      data.fileRetentionPolicy = body.file_retention_policy;
+    }
+
+    if (body.paid_orders_priority !== undefined) {
+      const allowed: QueuePriority[] = ['urgent', 'normal', 'low'];
+      if (!allowed.includes(body.paid_orders_priority as QueuePriority)) {
+        throw new BadRequestException('أولوية الطلبات غير صالحة');
+      }
+      data.paidOrdersPriority = body.paid_orders_priority;
+    }
+
+    if (body.tax_rate_bps !== undefined) {
+      const tax = Math.round(Number(body.tax_rate_bps));
+      if (!Number.isFinite(tax) || tax < 0 || tax > 10000) {
+        throw new BadRequestException('نسبة الضريبة غير صالحة');
+      }
+      data.taxRateBps = tax;
+    }
 
     if (Object.keys(data).length === 0) {
       throw new BadRequestException('لا توجد بيانات للتحديث');

@@ -3,6 +3,11 @@
 import { useCallback, useId, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import { CloudUpload, FileText, Trash2 } from 'lucide-react';
 import { type SelectedFile, filesFromList, formatFileSize } from '@/lib/files';
+import {
+  FilePreviewDialog,
+  PreviewButton,
+  useObjectUrl,
+} from '@/components/file-preview-dialog';
 
 const ACCEPT = '.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.jpg,.jpeg,.png,.webp';
 
@@ -12,6 +17,63 @@ interface FileUploadZoneProps {
   disabled?: boolean;
   compact?: boolean;
   showContinue?: boolean;
+}
+
+function FileRow({
+  file,
+  index,
+  disabled,
+  onRemove,
+}: {
+  file: SelectedFile;
+  index: number;
+  disabled?: boolean;
+  onRemove: () => void;
+}) {
+  const objectUrl = useObjectUrl(file.error ? null : file.file);
+  const [previewOpen, setPreviewOpen] = useState(false);
+
+  return (
+    <>
+      <li
+        className="file-item flex items-center gap-3 rounded-xl border border-border bg-surface p-3 shadow-sm"
+        style={{ animationDelay: `${index * 60}ms` }}
+      >
+        <div
+          className={`flex size-10 shrink-0 items-center justify-center rounded-lg ${
+            file.error ? 'bg-error/10 text-error' : 'bg-primary/10 text-primary'
+          }`}
+        >
+          <FileText className="size-5" />
+        </div>
+        <div className="min-w-0 flex-1 text-start">
+          <p className="truncate text-sm font-semibold">{file.name}</p>
+          <p className={`text-xs ${file.error ? 'text-error' : 'text-text-muted'}`}>
+            {file.error ?? formatFileSize(file.size)}
+          </p>
+        </div>
+        {!file.error && objectUrl ? (
+          <PreviewButton onClick={() => setPreviewOpen(true)} />
+        ) : null}
+        <button
+          type="button"
+          onClick={onRemove}
+          disabled={disabled}
+          className="rounded-lg p-2 text-text-muted transition-colors hover:bg-error/10 hover:text-error disabled:opacity-40"
+          aria-label={`حذف ${file.name}`}
+        >
+          <Trash2 className="size-4" />
+        </button>
+      </li>
+      <FilePreviewDialog
+        open={previewOpen}
+        onClose={() => setPreviewOpen(false)}
+        title={file.name}
+        src={objectUrl}
+        mime={file.type}
+      />
+    </>
+  );
 }
 
 export function FileUploadZone({
@@ -68,22 +130,35 @@ export function FileUploadZone({
 
       <label
         htmlFor={disabled ? undefined : inputId}
-        onDragEnter={(e) => { e.preventDefault(); if (!disabled) { dragCount.current += 1; setDragging(true); } }}
+        onDragEnter={(e) => {
+          e.preventDefault();
+          if (!disabled) {
+            dragCount.current += 1;
+            setDragging(true);
+          }
+        }}
         onDragOver={(e) => e.preventDefault()}
         onDragLeave={(e) => {
           e.preventDefault();
           dragCount.current -= 1;
-          if (dragCount.current <= 0) { dragCount.current = 0; setDragging(false); }
+          if (dragCount.current <= 0) {
+            dragCount.current = 0;
+            setDragging(false);
+          }
         }}
         onDrop={onDrop}
         className={[
           'group relative flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed text-center transition-all',
           compact ? 'p-6' : 'p-8',
-          dragging ? 'border-primary bg-accent scale-[1.01]' : 'border-primary/30 bg-accent/40 hover:border-primary/50 hover:bg-accent/60',
+          dragging
+            ? 'border-primary bg-accent scale-[1.01]'
+            : 'border-primary/30 bg-accent/40 hover:border-primary/50 hover:bg-accent/60',
           disabled ? 'pointer-events-none opacity-50' : '',
         ].join(' ')}
       >
-        <div className={`mb-3 flex items-center justify-center rounded-full bg-primary/10 ${compact ? 'size-14' : 'size-16'}`}>
+        <div
+          className={`mb-3 flex items-center justify-center rounded-full bg-primary/10 ${compact ? 'size-14' : 'size-16'}`}
+        >
           <CloudUpload className={`text-primary ${compact ? 'size-7' : 'size-8'}`} />
         </div>
         <p className="text-sm font-bold text-text">
@@ -95,29 +170,13 @@ export function FileUploadZone({
       {files.length > 0 && (
         <ul className="space-y-2">
           {files.map((f, i) => (
-            <li
+            <FileRow
               key={f.id}
-              className="file-item flex items-center gap-3 rounded-xl border border-border bg-surface p-3 shadow-sm"
-              style={{ animationDelay: `${i * 60}ms` }}
-            >
-              <div className={`flex size-10 shrink-0 items-center justify-center rounded-lg ${f.error ? 'bg-error/10 text-error' : 'bg-primary/10 text-primary'}`}>
-                <FileText className="size-5" />
-              </div>
-              <div className="min-w-0 flex-1 text-start">
-                <p className="truncate text-sm font-semibold">{f.name}</p>
-                <p className={`text-xs ${f.error ? 'text-error' : 'text-text-muted'}`}>
-                  {f.error ?? formatFileSize(f.size)}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => removeFile(f.id)}
-                className="rounded-lg p-2 text-text-muted transition-colors hover:bg-error/10 hover:text-error"
-                aria-label={`حذف ${f.name}`}
-              >
-                <Trash2 className="size-4" />
-              </button>
-            </li>
+              file={f}
+              index={i}
+              disabled={disabled}
+              onRemove={() => removeFile(f.id)}
+            />
           ))}
         </ul>
       )}

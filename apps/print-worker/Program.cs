@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Printing;
 using System.Text;
@@ -43,6 +44,15 @@ internal static class Program
                     {
                         var printerId = req["printerId"]?.GetValue<string>() ?? "";
                         Write(PrintTest(printerId));
+                        break;
+                    }
+                    case "print.document":
+                    {
+                        var filePath = req["filePath"]?.GetValue<string>() ?? "";
+                        var printerId = req["printerId"]?.GetValue<string>() ?? "";
+                        var copies = req["copies"]?.GetValue<int?>() ?? 1;
+                        var sides = req["sides"]?.GetValue<string>() ?? "single";
+                        Write(PrintDocumentFile(filePath, printerId, copies, sides));
                         break;
                     }
                     case "ping":
@@ -132,6 +142,109 @@ internal static class Program
         catch (Exception ex)
         {
             return new { ok = false, messageAr = $"فشلت طباعة الاختبار: {ex.Message}" };
+        }
+    }
+
+    private static object PrintDocumentFile(string filePath, string printerId, int copies, string sides)
+    {
+        if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath))
+        {
+            return new { ok = false, messageAr = "ملف الطباعة غير موجود" };
+        }
+
+        if (string.IsNullOrWhiteSpace(printerId))
+        {
+            printerId = new PrinterSettings().PrinterName;
+        }
+
+        var installed = PrinterSettings.InstalledPrinters.Cast<string>()
+            .Any(n => string.Equals(n, printerId, StringComparison.OrdinalIgnoreCase));
+
+        if (!installed)
+        {
+            return new { ok = false, messageAr = "الطابعة غير موجودة على هذا الجهاز" };
+        }
+
+        try
+        {
+            // Prefer Shell PrintTo (Edge/Adobe PDF handler).
+            var psi = new ProcessStartInfo
+            {
+                FileName = filePath,
+                Verb = "PrintTo",
+                Arguments = $"\"{printerId}\"",
+                CreateNoWindow = true,
+                WindowStyle = ProcessWindowStyle.Hidden,
+                UseShellExecute = true,
+            };
+
+            var printedViaShell = false;
+            try
+            {
+                using var proc = Process.Start(psi);
+                if (proc != null)
+                {
+                    proc.WaitForExit(90_000);
+                    printedViaShell = true;
+                }
+            }
+            catch
+            {
+                printedViaShell = false;
+            }
+
+            if (printedViaShell)
+            {
+                // Extra copies via additional PrintTo calls when shell ignores copies.
+                var extra = Math.Clamp(copies, 1, 99) - 1;
+                for (var i = 0; i < extra; i++)
+                {
+                    try
+                    {
+                        using var again = Process.Start(psi);
+                        again?.WaitForExit(90_000);
+                    }
+                    catch
+                    {
+                        break;
+                    }
+                }
+
+                return new { ok = true };
+            }
+
+            using var doc = new PrintDocument();
+            doc.PrinterSettings.PrinterName = printerId;
+            doc.PrinterSettings.Copies = (short)Math.Clamp(copies, 1, 99);
+            if (!string.Equals(sides, "single", StringComparison.OrdinalIgnoreCase))
+            {
+                doc.PrinterSettings.Duplex = Duplex.Vertical;
+            }
+            doc.DocumentName = Path.GetFileName(filePath);
+
+            var printed = false;
+            doc.PrintPage += (_, e) =>
+            {
+                if (printed)
+                {
+                    e.HasMorePages = false;
+                    return;
+                }
+                printed = true;
+                e.HasMorePages = false;
+                e.Graphics?.DrawString(
+                    $"[OMSP] {Path.GetFileName(filePath)}\nثبّت قارئ PDF لاستخدام الطباعة الحقيقية",
+                    new Font("Segoe UI", 12),
+                    Brushes.Black,
+                    50,
+                    50);
+            };
+            doc.Print();
+            return new { ok = true };
+        }
+        catch (Exception ex)
+        {
+            return new { ok = false, messageAr = $"فشلت الطباعة: {ex.Message}" };
         }
     }
 }

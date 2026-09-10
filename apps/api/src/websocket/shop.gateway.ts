@@ -80,6 +80,16 @@ export class ShopGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     });
 
     this.logger.log(`Device connected: ${device.name} (${device.id})`);
+
+    // Flush any jobs that were waiting while the desktop was offline.
+    setTimeout(() => {
+      void this.printing
+        .flushQueuedJobsForStore(device.storeId)
+        .then((n) => {
+          if (n > 0) this.logger.log(`Flushed ${n} queued print job(s) for store ${device.storeId}`);
+        })
+        .catch((err) => this.logger.warn(`Flush queued jobs failed: ${err}`));
+    }, 500);
   }
 
   handleDisconnect(client: Socket) {

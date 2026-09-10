@@ -16,6 +16,11 @@ import {
 } from '@omsp/types';
 import { formatOMR, getPhoneErrorMessageAr } from '@omsp/shared';
 import { FileUploadZone } from '@/components/file-upload-zone';
+import {
+  FilePreviewDialog,
+  PreviewButton,
+  useObjectUrl,
+} from '@/components/file-preview-dialog';
 import type { Step } from '@/components/order-flow-types';
 import { PhoneInput } from '@/components/phone-input';
 import { StepIndicator } from '@/components/step-indicator';
@@ -39,6 +44,8 @@ import {
 
 interface ItemConfig {
   upload: UploadedFile;
+  /** Kept for in-browser preview after upload (blob URL). */
+  localFile?: File;
   color_mode: 'bw' | 'color' | 'grayscale';
   paper_size: 'A4' | 'A3' | 'A5';
   sides: 'single' | 'duplex_long' | 'duplex_short';
@@ -46,6 +53,24 @@ interface ItemConfig {
   copies: number;
   page_range: string;
   finishing_service_ids: string[];
+}
+
+function ItemPreviewButton({ item }: { item: ItemConfig }) {
+  const src = useObjectUrl(item.localFile ?? null);
+  const [open, setOpen] = useState(false);
+  if (!item.localFile || !src) return null;
+  return (
+    <>
+      <PreviewButton onClick={() => setOpen(true)} />
+      <FilePreviewDialog
+        open={open}
+        onClose={() => setOpen(false)}
+        title={item.upload.original_filename}
+        src={src}
+        mime={item.upload.mime_type || item.localFile.type}
+      />
+    </>
+  );
 }
 
 interface OrderFlowProps {
@@ -66,6 +91,8 @@ export function OrderFlow({ store }: OrderFlowProps) {
   const [paymentMethod, setPaymentMethod] = useState<'pay_at_pickup' | 'online'>('pay_at_pickup');
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmIndex, setConfirmIndex] = useState(0);
   const [orderResult, setOrderResult] = useState<{
     order_number: string;
     tracking_token: string;
@@ -97,6 +124,7 @@ export function OrderFlow({ store }: OrderFlowProps) {
         const result = await uploadFile(store.slug, f.file);
         uploaded.push({
           upload: { ...result, original_filename: f.name },
+          localFile: f.file,
           color_mode: 'bw',
           paper_size: 'A4',
           sides: 'single',
@@ -146,16 +174,25 @@ export function OrderFlow({ store }: OrderFlowProps) {
     if (step === 'options' || step === 'checkout') refreshQuote();
   }, [step, items, refreshQuote]);
 
+  const confirmItem = items[confirmIndex];
+  const confirmSrc = useObjectUrl(confirmItem?.localFile ?? null);
+
   const updateItem = (index: number, patch: Partial<ItemConfig>) => {
     setItems((prev) => prev.map((item, i) => (i === index ? { ...item, ...patch } : item)));
   };
 
-  const handleSubmit = async () => {
+  const openSubmitConfirm = () => {
     const phoneError = getPhoneErrorMessageAr(customerPhone, { required: true });
     if (phoneError) {
       setSubmitError(phoneError);
       return;
     }
+    setSubmitError(null);
+    setConfirmIndex(0);
+    setConfirmOpen(true);
+  };
+
+  const handleSubmit = async () => {
     setSubmitting(true);
     setSubmitError(null);
     try {
@@ -166,6 +203,7 @@ export function OrderFlow({ store }: OrderFlowProps) {
         payment_method: paymentMethod,
         items: buildOrderItems(),
       });
+      setConfirmOpen(false);
       setOrderResult({
         order_number: result.order_number,
         tracking_token: result.tracking_token,
@@ -238,9 +276,12 @@ export function OrderFlow({ store }: OrderFlowProps) {
               <h2 className="text-lg font-bold">خيارات الطباعة</h2>
               {items.map((item, i) => (
                 <div key={item.upload.file_key} className="card space-y-4 p-4">
-                  <div>
-                    <p className="truncate text-sm font-bold">{item.upload.original_filename}</p>
-                    <p className="text-xs text-text-muted">{item.upload.page_count} صفحة</p>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-bold">{item.upload.original_filename}</p>
+                      <p className="text-xs text-text-muted">{item.upload.page_count} صفحة</p>
+                    </div>
+                    <ItemPreviewButton item={item} />
                   </div>
 
                   <div>
@@ -351,9 +392,12 @@ export function OrderFlow({ store }: OrderFlowProps) {
               {quote && (
                 <div className="card p-4">
                   {items.map((item, idx) => (
-                    <div key={item.upload.file_key} className="summary-row summary-row-muted">
-                      <span className="truncate">{item.upload.original_filename}</span>
-                      <span>{quote.items[idx] ? formatOMR(quote.items[idx].amount_baisa) : '—'}</span>
+                    <div key={item.upload.file_key} className="summary-row summary-row-muted gap-2">
+                      <span className="min-w-0 flex-1 truncate">{item.upload.original_filename}</span>
+                      <ItemPreviewButton item={item} />
+                      <span className="shrink-0 tabular-nums">
+                        {quote.items[idx] ? formatOMR(quote.items[idx].amount_baisa) : '—'}
+                      </span>
                     </div>
                   ))}
                   <div className="summary-row summary-row-muted">
@@ -478,8 +522,8 @@ export function OrderFlow({ store }: OrderFlowProps) {
         {step === 'checkout' && (
           <div className="fixed-bottom-cta flex gap-2">
             <button type="button" className="btn-ghost flex-1" onClick={() => setStep('options')}>رجوع</button>
-            <button type="button" className="btn-primary flex-1" disabled={submitting || !customerPhone.trim()} onClick={handleSubmit}>
-              {submitting ? 'جاري الإرسال...' : 'تأكيد الطلب'}
+            <button type="button" className="btn-primary flex-1" disabled={submitting || !customerPhone.trim()} onClick={openSubmitConfirm}>
+              {submitting ? 'جاري الإرسال...' : 'معاينة وتأكيد'}
             </button>
           </div>
         )}
@@ -488,6 +532,57 @@ export function OrderFlow({ store }: OrderFlowProps) {
           <StoreFooter store={store} />
         )}
       </div>
+
+      <FilePreviewDialog
+        open={confirmOpen}
+        onClose={() => !submitting && setConfirmOpen(false)}
+        title={confirmItem?.upload.original_filename ?? 'معاينة قبل الإرسال'}
+        src={confirmSrc}
+        mime={confirmItem?.upload.mime_type || confirmItem?.localFile?.type}
+        footer={
+          <>
+            {items.length > 1 ? (
+              <div className="me-auto flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2">
+                <button
+                  type="button"
+                  className="btn-outline !px-2.5 !py-1.5 text-xs"
+                  disabled={confirmIndex <= 0 || submitting}
+                  onClick={() => setConfirmIndex((i) => Math.max(0, i - 1))}
+                >
+                  السابق
+                </button>
+                <span className="shrink-0 text-xs text-text-muted tabular-nums">
+                  {confirmIndex + 1} / {items.length}
+                </span>
+                <button
+                  type="button"
+                  className="btn-outline !px-2.5 !py-1.5 text-xs"
+                  disabled={confirmIndex >= items.length - 1 || submitting}
+                  onClick={() => setConfirmIndex((i) => Math.min(items.length - 1, i + 1))}
+                >
+                  التالي
+                </button>
+              </div>
+            ) : null}
+            <button
+              type="button"
+              className="btn-ghost !px-3 !py-1.5 text-sm"
+              disabled={submitting}
+              onClick={() => setConfirmOpen(false)}
+            >
+              رجوع
+            </button>
+            <button
+              type="button"
+              className="btn-primary !px-3 !py-1.5 text-sm"
+              disabled={submitting}
+              onClick={() => void handleSubmit()}
+            >
+              {submitting ? 'جاري الإرسال...' : 'تأكيد وإرسال'}
+            </button>
+          </>
+        }
+      />
     </div>
   );
 }

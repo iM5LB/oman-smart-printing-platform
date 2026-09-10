@@ -33,6 +33,13 @@ struct PrintTestResponse {
     message_ar: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+struct PrintDocumentResponse {
+    ok: bool,
+    #[serde(default, rename = "messageAr")]
+    message_ar: Option<String>,
+}
+
 struct PrintWorkerState {
     path: PathBuf,
 }
@@ -244,6 +251,73 @@ fn print_test(
     }
 }
 
+#[tauri::command]
+fn write_temp_file(app: tauri::AppHandle, file_name: String, bytes: Vec<u8>) -> Result<String, String> {
+    let dir = app
+        .path()
+        .app_cache_dir()
+        .or_else(|_| app.path().temp_dir())
+        .map_err(|e| format!("تعذر تحديد مجلد مؤقت: {e}"))?;
+    let print_dir = dir.join("print-jobs");
+    std::fs::create_dir_all(&print_dir).map_err(|e| format!("تعذر إنشاء المجلد: {e}"))?;
+    let safe = file_name
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() || c == '.' || c == '-' || c == '_' { c } else { '_' })
+        .collect::<String>();
+    let path = print_dir.join(if safe.is_empty() { "document.bin".into() } else { safe });
+    std::fs::write(&path, bytes).map_err(|e| format!("تعذر حفظ الملف: {e}"))?;
+    Ok(path.to_string_lossy().into_owned())
+}
+
+#[tauri::command]
+fn print_document(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, Mutex<Option<PrintWorkerState>>>,
+    file_path: String,
+    printer_id: String,
+    copies: Option<i32>,
+    sides: Option<String>,
+) -> Result<(), String> {
+    let path = {
+        let mut guard = state.lock().map_err(|_| "قفل الحالة فشل")?;
+        if guard.is_none() {
+            *guard = Some(PrintWorkerState {
+                path: resolve_worker_path(&app)?,
+            });
+        }
+        guard.as_ref().unwrap().path.clone()
+    };
+
+    #[cfg(windows)]
+    {
+        let value = call_worker(
+            &path,
+            json!({
+                "cmd": "print.document",
+                "filePath": file_path,
+                "printerId": printer_id,
+                "copies": copies.unwrap_or(1),
+                "sides": sides.unwrap_or_else(|| "single".into()),
+            }),
+        )?;
+        let parsed: PrintDocumentResponse = serde_json::from_value(value)
+            .map_err(|e| format!("تعذر تحليل رد الطباعة: {e}"))?;
+        if parsed.ok {
+            Ok(())
+        } else {
+            Err(parsed
+                .message_ar
+                .unwrap_or_else(|| "فشلت الطباعة".into()))
+        }
+    }
+
+    #[cfg(not(windows))]
+    {
+        let _ = (path, file_path, printer_id, copies, sides);
+        Err("الطباعة مدعومة على Windows فقط".into())
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -251,10 +325,13 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_notification::init())
         .manage(Mutex::new(None::<PrintWorkerState>))
         .invoke_handler(tauri::generate_handler![
             list_printers,
             print_test,
+            print_document,
+            write_temp_file,
             save_export_file,
             open_html_report
         ])

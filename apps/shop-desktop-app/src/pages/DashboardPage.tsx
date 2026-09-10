@@ -14,7 +14,7 @@ import {
   toggleSort,
   type SortDir,
 } from "../components/SortHeader";
-import { orderStatusAr, orderStatusTone } from "../lib/labels";
+import { isPaymentPaid, orderStatusAr, orderStatusTone } from "../lib/labels";
 
 function orderLabel(o: ShopOrder) {
   const raw = o.order_number || o.display_number || o.id.slice(0, 8);
@@ -72,7 +72,12 @@ export function DashboardPage() {
   useEffect(() => {
     void load();
     const id = window.setInterval(() => void load(), 20_000);
-    return () => window.clearInterval(id);
+    const onChange = () => void load();
+    window.addEventListener("omsp:orders-changed", onChange);
+    return () => {
+      window.clearInterval(id);
+      window.removeEventListener("omsp:orders-changed", onChange);
+    };
   }, [load]);
 
   const selected = useMemo(
@@ -118,7 +123,7 @@ export function DashboardPage() {
     typeof stats?.orders_delta_percent === "number" ? stats.orders_delta_percent : null;
 
   const runAction = async (
-    kind: "dispatch" | "retry" | "ready" | "collected",
+    kind: "dispatch" | "retry" | "ready" | "handover",
   ) => {
     if (!token || !selected) return;
     setActionBusy(true);
@@ -127,7 +132,12 @@ export function DashboardPage() {
       if (kind === "dispatch") await shopApi.dispatch(token, selected.id);
       if (kind === "retry") await shopApi.retry(token, selected.id);
       if (kind === "ready") await shopApi.markReady(token, selected.id);
-      if (kind === "collected") await shopApi.markCollected(token, selected.id);
+      if (kind === "handover") {
+        if (!isPaymentPaid(selected.payment_status)) {
+          await shopApi.payInStore(token, selected.id, "cash");
+        }
+        await shopApi.markCollected(token, selected.id);
+      }
       setActionMsg("تم التنفيذ");
       await load();
     } catch (e) {
@@ -347,7 +357,7 @@ export function DashboardPage() {
             onPrint={() => void runAction("dispatch")}
             onRetry={() => void runAction("retry")}
             onReady={() => void runAction("ready")}
-            onCollected={() => void runAction("collected")}
+            onHandover={() => void runAction("handover")}
           />
         </Panel>
       </aside>

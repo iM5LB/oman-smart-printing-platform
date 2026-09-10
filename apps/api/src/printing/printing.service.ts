@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger, forwardRef } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, Logger, forwardRef } from '@nestjs/common';
 import { PrismaClient } from '@omsp/database';
 import { PRISMA } from '../prisma/prisma.module';
 import { StorageService } from '../storage/storage.service';
@@ -17,56 +17,85 @@ export class PrintingService {
     private readonly notifications: NotificationsService,
   ) {}
 
+  private apiPublicBase(): string {
+    return (
+      process.env.PUBLIC_API_URL ??
+      process.env.API_PUBLIC_URL ??
+      process.env.API_URL ??
+      process.env.RENDER_EXTERNAL_URL ??
+      `http://localhost:${process.env.API_PORT ?? 4000}`
+    ).replace(/\/+$/, '');
+  }
+
   async dispatchOrder(orderId: string): Promise<void> {
     const order = await this.db.order.findUnique({
       where: { id: orderId },
-      include: {
-        items: true,
-        store: true,
-      },
+      include: { items: true, store: true },
     });
     if (!order) return;
+
+    if (['ready', 'collected', 'completed', 'cancelled'].includes(order.status)) {
+      throw new BadRequestException('لا يمكن طباعة طلب منتهٍ أو ملغى');
+    }
 
     const printers = await this.db.printer.findMany({
       where: { storeId: order.storeId, status: 'online' },
     });
+
+    let anyJob = false;
+    let anyDispatched = false;
 
     for (const item of order.items) {
       if (!item.originalFileKey) continue;
 
       const printer = this.selectPrinter(printers, item);
       const idempotencyKey = `${order.id}:${item.id}:1`;
+      let printJob = await this.db.printJob.findUnique({ where: { idempotencyKey } });
 
-      const existing = await this.db.printJob.findUnique({ where: { idempotencyKey } });
-      if (existing) continue;
+      if (printJob?.status === 'completed') {
+        continue;
+      }
 
-      const printJob = await this.db.printJob.create({
-        data: {
-          orderId: order.id,
-          orderItemId: item.id,
-          printerId: printer?.id ?? null,
-          deviceId: printer?.deviceId ?? null,
-          status: 'queued',
-          priority: order.store.paidOrdersPriority,
-          idempotencyKey,
-          settings: {
-            copies: item.copies,
-            color_mode: item.colorMode,
-            paper_size: item.paperSize,
-            sides: item.sides,
-            orientation: item.orientation,
-            page_range: item.pageRange,
+      if (!printJob) {
+        printJob = await this.db.printJob.create({
+          data: {
+            orderId: order.id,
+            orderItemId: item.id,
+            printerId: printer?.id ?? null,
+            deviceId: printer?.deviceId ?? null,
+            status: 'queued',
+            priority: order.store.paidOrdersPriority,
+            idempotencyKey,
+            settings: {
+              copies: item.copies,
+              color_mode: item.colorMode,
+              paper_size: item.paperSize,
+              sides: item.sides,
+              orientation: item.orientation,
+              page_range: item.pageRange,
+            },
           },
-        },
-      });
+        });
+      } else if (printer) {
+        await this.db.printJob.update({
+          where: { id: printJob.id },
+          data: {
+            printerId: printer.id,
+            deviceId: printer.deviceId,
+            status: 'queued',
+            failureCode: null,
+            failureReason: null,
+          },
+        });
+      }
 
-      const apiUrl = process.env.API_URL ?? 'http://localhost:4000';
-      const documentUrl = this.storage.getSignedUrl(item.originalFileKey, apiUrl);
-
-      await this.db.order.update({
-        where: { id: orderId },
-        data: { status: 'printing' },
-      });
+      anyJob = true;
+      const documentUrl = this.storage.getSignedUrl(
+        item.originalFileKey,
+        this.apiPublicBase(),
+        3600,
+        item.originalFilename,
+      );
 
       const dispatched = await this.shopGateway.dispatchPrint({
         print_job_id: printJob.id,
@@ -74,7 +103,7 @@ export class PrintingService {
         order_item_id: item.id,
         idempotency_key: idempotencyKey,
         document_url: documentUrl,
-        document_expires_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+        document_expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
         settings: {
           copies: item.copies,
           color_mode: item.colorMode,
@@ -88,14 +117,93 @@ export class PrintingService {
         printer_os_name: printer?.osName ?? null,
       });
 
-      if (!dispatched) {
-        this.logger.warn(`No connected device for store ${order.storeId}, print job ${printJob.id} queued`);
+      if (dispatched) {
+        anyDispatched = true;
+        await this.db.printJob.update({
+          where: { id: printJob.id },
+          data: { status: 'printing', startedAt: new Date() },
+        });
+      } else {
+        this.logger.warn(
+          `No connected device for store ${order.storeId}; job ${printJob.id} stays queued`,
+        );
+      }
+    }
+
+    if (!anyJob) return;
+
+    await this.db.order.update({
+      where: { id: orderId },
+      data: { status: anyDispatched ? 'printing' : 'queued' },
+    });
+  }
+
+  /** Re-send queued/sent jobs when a desktop device comes online. */
+  async flushQueuedJobsForStore(storeId: string): Promise<number> {
+    const jobs = await this.db.printJob.findMany({
+      where: {
+        status: { in: ['queued', 'preparing', 'downloading', 'printing', 'failed'] },
+        order: { storeId, status: { in: ['queued', 'printing', 'needs_review', 'paid', 'review_pending'] } },
+      },
+      include: {
+        orderItem: true,
+        order: { include: { store: true } },
+        printer: true,
+      },
+      orderBy: { createdAt: 'asc' },
+      take: 30,
+    });
+
+    let sent = 0;
+    for (const job of jobs) {
+      const fileKey = job.orderItem?.originalFileKey;
+      if (!fileKey) continue;
+
+      const settings = (job.settings ?? {}) as Record<string, unknown>;
+      const documentUrl = this.storage.getSignedUrl(
+        fileKey,
+        this.apiPublicBase(),
+        3600,
+        job.orderItem?.originalFilename,
+      );
+      const ok = await this.shopGateway.dispatchPrint({
+        print_job_id: job.id,
+        order_id: job.orderId,
+        order_item_id: job.orderItemId,
+        idempotency_key: job.idempotencyKey,
+        document_url: documentUrl,
+        document_expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+        settings: {
+          copies: settings.copies ?? job.orderItem.copies,
+          color_mode: settings.color_mode ?? job.orderItem.colorMode,
+          paper_size: settings.paper_size ?? job.orderItem.paperSize,
+          sides: settings.sides ?? job.orderItem.sides,
+          orientation: settings.orientation ?? job.orderItem.orientation,
+          page_range: settings.page_range ?? job.orderItem.pageRange,
+        },
+        suggested_printer_id: job.printerId,
+        priority: job.priority,
+        printer_os_name: job.printer?.osName ?? null,
+      });
+
+      if (ok) {
+        sent++;
+        await this.db.printJob.update({
+          where: { id: job.id },
+          data: {
+            status: 'printing',
+            startedAt: new Date(),
+            failureCode: null,
+            failureReason: null,
+          },
+        });
         await this.db.order.update({
-          where: { id: orderId },
-          data: { status: 'needs_review' },
+          where: { id: job.orderId },
+          data: { status: 'printing' },
         });
       }
     }
+    return sent;
   }
 
   async handlePrintCompleted(payload: {
@@ -112,6 +220,20 @@ export class PrintingService {
         completedAt: new Date(),
       },
     });
+
+    const remaining = await this.db.printJob.count({
+      where: {
+        orderId: payload.order_id,
+        status: { notIn: ['completed', 'cancelled'] },
+      },
+    });
+    if (remaining > 0) {
+      await this.db.order.update({
+        where: { id: payload.order_id },
+        data: { status: 'printing' },
+      });
+      return;
+    }
 
     const order = await this.db.order.findUnique({
       where: { id: payload.order_id },
@@ -154,7 +276,6 @@ export class PrintingService {
     });
   }
 
-  /** Re-dispatch order print jobs (new attempt numbers). */
   async retryOrder(orderId: string): Promise<{ jobs: number }> {
     const order = await this.db.order.findUnique({
       where: { id: orderId },
@@ -167,6 +288,8 @@ export class PrintingService {
     });
 
     let jobs = 0;
+    let anyDispatched = false;
+
     for (const item of order.items) {
       if (!item.originalFileKey) continue;
 
@@ -199,21 +322,20 @@ export class PrintingService {
         },
       });
 
-      const apiUrl = process.env.API_URL ?? 'http://localhost:4000';
-      const documentUrl = this.storage.getSignedUrl(item.originalFileKey, apiUrl);
+      const documentUrl = this.storage.getSignedUrl(
+        item.originalFileKey,
+        this.apiPublicBase(),
+        3600,
+        item.originalFilename,
+      );
 
-      await this.db.order.update({
-        where: { id: orderId },
-        data: { status: 'printing' },
-      });
-
-      await this.shopGateway.dispatchPrint({
+      const dispatched = await this.shopGateway.dispatchPrint({
         print_job_id: printJob.id,
         order_id: order.id,
         order_item_id: item.id,
         idempotency_key: idempotencyKey,
         document_url: documentUrl,
-        document_expires_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+        document_expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
         settings: {
           copies: item.copies,
           color_mode: item.colorMode,
@@ -226,7 +348,22 @@ export class PrintingService {
         priority: order.store.paidOrdersPriority,
         printer_os_name: printer?.osName ?? null,
       });
+
+      if (dispatched) {
+        anyDispatched = true;
+        await this.db.printJob.update({
+          where: { id: printJob.id },
+          data: { status: 'printing', startedAt: new Date() },
+        });
+      }
       jobs++;
+    }
+
+    if (jobs > 0) {
+      await this.db.order.update({
+        where: { id: orderId },
+        data: { status: anyDispatched ? 'printing' : 'queued' },
+      });
     }
 
     return { jobs };
@@ -246,7 +383,11 @@ export class PrintingService {
     }>,
     item: { colorMode: string; paperSize: string; sides: string },
   ) {
-    let candidates = printers.filter((p) => p.supportedSizes.includes(item.paperSize));
+    let candidates = printers.filter((p) =>
+      p.supportedSizes.length === 0
+        ? true
+        : p.supportedSizes.includes(item.paperSize),
+    );
 
     if (item.colorMode === 'color') {
       candidates = candidates.filter((p) => p.supportsColor);
@@ -256,12 +397,21 @@ export class PrintingService {
       candidates = candidates.filter((p) => p.supportsDuplex);
     }
 
+    if (!candidates.length) {
+      candidates = [...printers];
+    }
     if (!candidates.length) return null;
 
-    const role = item.colorMode === 'color' ? `color_${item.paperSize.toLowerCase()}` : `bw_${item.paperSize.toLowerCase()}`;
+    const role =
+      item.colorMode === 'color'
+        ? `color_${item.paperSize.toLowerCase()}`
+        : `bw_${item.paperSize.toLowerCase()}`;
     const roleMatch = candidates.filter((p) => p.roles.includes(role));
     const pool = roleMatch.length ? roleMatch : candidates;
 
-    return pool.sort((a, b) => a.queueLength - b.queueLength || (b.isDefault ? 1 : 0) - (a.isDefault ? 1 : 0))[0];
+    return pool.sort(
+      (a, b) =>
+        a.queueLength - b.queueLength || (b.isDefault ? 1 : 0) - (a.isDefault ? 1 : 0),
+    )[0];
   }
 }

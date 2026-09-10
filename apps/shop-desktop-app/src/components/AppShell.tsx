@@ -10,6 +10,7 @@ import {
 } from "../lib/updates";
 import { Icons } from "./icons";
 import { NotificationBell } from "./NotificationBell";
+import { PrintBridge } from "./PrintBridge";
 import { StoreBrandMark, storeInitials } from "./StoreBrandMark";
 import { useToast } from "./Toast";
 import { Button } from "./ui";
@@ -128,7 +129,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           pushToast({
             id: `order-${order.id}`,
             tone: "success",
-            title: `${label} طلب جديد`,
+            title: `طلب جديد ${label}`,
             detail: "تم استلام طلب جديد من العميل",
             durationMs: 6000,
           });
@@ -150,6 +151,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="relative flex h-[100dvh] overflow-hidden bg-bg-base text-text-primary">
+      <PrintBridge />
       <div
         className="pointer-events-none absolute inset-0"
         style={{

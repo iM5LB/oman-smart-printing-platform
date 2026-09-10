@@ -1,8 +1,10 @@
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { useNavigate } from "react-router-dom";
 import type { ShopOrder } from "../lib/api";
-import { openExternalUrl } from "../lib/openExternal";
+import { listPrinters } from "../lib/print";
 import { Badge, Button, EmptyState } from "./ui";
 import { Icons } from "./icons";
+import { FilePreviewDialog } from "./FilePreviewDialog";
 import {
   colorModeAr,
   isPaymentPaid,
@@ -88,6 +90,72 @@ function orientationAr(value?: string) {
   }
 }
 
+type PrimaryAction =
+  | { kind: "print"; label: string }
+  | { kind: "retry"; label: string }
+  | { kind: "ready"; label: string }
+  | { kind: "handover"; label: string; unpaid: boolean }
+  | null;
+
+function resolvePrimaryAction(order: ShopOrder): {
+  action: PrimaryAction;
+  hint: string | null;
+} {
+  const status = order.status;
+  const paid = isPaymentPaid(order.payment_status);
+
+  if (status === "ready") {
+    return {
+      action: {
+        kind: "handover",
+        unpaid: !paid,
+        label: paid ? "تسليم" : "دفع وتسليم",
+      },
+      hint: null,
+    };
+  }
+
+  if (status === "awaiting_finishing") {
+    return {
+      action: { kind: "ready", label: "جاهز" },
+      hint: null,
+    };
+  }
+
+  if (status === "needs_review" || status === "failed") {
+    return {
+      action: { kind: "retry", label: "إعادة" },
+      hint: null,
+    };
+  }
+
+  if (status === "printing" || status === "queued") {
+    // Keep Print available — orders stick here when no Windows printer is installed.
+    return {
+      action: { kind: "print", label: "طباعة" },
+      hint: null,
+    };
+  }
+
+  if (["submitted", "paid", "review_pending"].includes(status)) {
+    return {
+      action: { kind: "print", label: "طباعة" },
+      hint: null,
+    };
+  }
+
+  if (!["collected", "completed", "cancelled"].includes(status)) {
+    return {
+      action: { kind: "print", label: "طباعة" },
+      hint: null,
+    };
+  }
+
+  return { action: null, hint: null };
+}
+
+type PreviewMode = "view" | "print" | "retry";
+
 export function OrderDetailPanel({
   order,
   storeName,
@@ -96,7 +164,7 @@ export function OrderDetailPanel({
   onPrint,
   onRetry,
   onReady,
-  onCollected,
+  onHandover,
 }: {
   order: ShopOrder | null;
   storeName?: string;
@@ -105,8 +173,37 @@ export function OrderDetailPanel({
   onPrint: () => void;
   onRetry: () => void;
   onReady: () => void;
-  onCollected: () => void;
+  /** Pay cash if unpaid, then mark collected. */
+  onHandover: () => void;
 }) {
+  const navigate = useNavigate();
+  const [preview, setPreview] = useState<{
+    open: boolean;
+    index: number;
+    mode: PreviewMode;
+  }>({ open: false, index: 0, mode: "view" });
+  const [printerCount, setPrinterCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!order) {
+      setPrinterCount(null);
+      setPreview({ open: false, index: 0, mode: "view" });
+      return;
+    }
+    setPreview({ open: false, index: 0, mode: "view" });
+    let cancelled = false;
+    void listPrinters()
+      .then((list) => {
+        if (!cancelled) setPrinterCount(list.length);
+      })
+      .catch(() => {
+        if (!cancelled) setPrinterCount(0);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [order?.id]);
+
   if (!order) {
     return (
       <EmptyState
@@ -118,6 +215,42 @@ export function OrderDetailPanel({
 
   const items = (order.items as ShopOrderItem[] | undefined) ?? [];
   const paid = isPaymentPaid(order.payment_status);
+  const { action, hint } = resolvePrimaryAction(order);
+  const previewItem = items[preview.index];
+  const previewSrc = previewItem?.file_url ?? null;
+  const noPrinter = printerCount === 0;
+
+  const openPreview = (index: number, mode: PreviewMode = "view") => {
+    setPreview({ open: true, index: Math.max(0, Math.min(index, items.length - 1)), mode });
+  };
+
+  const closePreview = () => setPreview((p) => ({ ...p, open: false }));
+
+  const printBlocked = Boolean(
+    noPrinter && action && (action.kind === "print" || action.kind === "retry"),
+  );
+
+  const runPrimary = () => {
+    if (!action) return;
+    if (action.kind === "print" || action.kind === "retry") {
+      if (noPrinter) {
+        navigate("/printers");
+        return;
+      }
+      const firstWithFile = items.findIndex((it) => Boolean(it.file_url));
+      openPreview(firstWithFile >= 0 ? firstWithFile : 0, action.kind);
+      return;
+    }
+    if (action.kind === "ready") onReady();
+    else onHandover();
+  };
+
+  const confirmPrintAction = () => {
+    const mode = preview.mode;
+    closePreview();
+    if (mode === "retry") onRetry();
+    else if (mode === "print") onPrint();
+  };
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -214,10 +347,11 @@ export function OrderDetailPanel({
                           variant="secondary"
                           className="shrink-0 !px-2 !py-1 text-meta"
                           disabled={busy}
-                          onClick={() => void openExternalUrl(item.file_url!)}
-                          title="فتح الملف"
+                          onClick={() => openPreview(idx, "view")}
+                          title="معاينة"
                         >
-                          فتح
+                          {Icons.eye({ size: 14 })}
+                          معاينة
                         </Button>
                       ) : null}
                     </div>
@@ -262,57 +396,136 @@ export function OrderDetailPanel({
             );
           })
         )}
+      </div>
 
-        <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-border-default bg-bg-elevated px-3.5 py-2.5">
+      <div className="shrink-0 border-t border-border-default bg-bg-surface p-3">
+        <div className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-border-default bg-bg-elevated px-3.5 py-3">
           <p className="text-body text-text-secondary">السعر الإجمالي</p>
           <p className="text-display tabular-nums text-primary">{money(order)}</p>
         </div>
 
         {message ? (
-          <p className="mt-2 text-center text-meta text-text-muted">{message}</p>
+          <p className="mb-2 text-center text-meta text-text-muted">{message}</p>
+        ) : null}
+
+        {action ? (
+          <Button
+            type="button"
+            className={`w-full gap-2 py-3 ${
+              action.kind === "handover" && !action.unpaid
+                ? "!bg-success hover:!bg-success/90"
+                : ""
+            }`}
+            variant={printBlocked ? "secondary" : action.kind === "retry" ? "secondary" : "primary"}
+            disabled={busy}
+            onClick={runPrimary}
+          >
+            {printBlocked
+              ? Icons.printer({ size: 16 })
+              : action.kind === "print" || action.kind === "retry"
+                ? Icons.printer({ size: 16 })
+                : action.kind === "ready"
+                  ? Icons.checkCircle({ size: 16 })
+                  : Icons.package({ size: 16 })}
+            {busy
+              ? "..."
+              : printBlocked
+                ? "لا توجد طابعة — فتح الطابعات"
+                : action.kind === "print" || action.kind === "retry"
+                  ? `معاينة ثم ${action.label}`
+                  : action.label}
+          </Button>
+        ) : hint ? (
+          <p className="py-2 text-center text-meta text-text-muted">{hint}</p>
         ) : null}
       </div>
 
-      <div className="grid shrink-0 grid-cols-2 gap-2 border-t border-border-default p-3">
-        <Button
-          className="gap-2 py-2.5"
-          type="button"
-          disabled={busy}
-          onClick={onPrint}
-        >
-          {Icons.printer({ size: 15 })}
-          طباعة
-        </Button>
-        <Button
-          className="gap-2 py-2.5"
-          variant="secondary"
-          type="button"
-          disabled={busy}
-          onClick={onRetry}
-        >
-          {Icons.refresh({ size: 15 })}
-          إعادة
-        </Button>
-        <button
-          type="button"
-          disabled={busy}
-          onClick={onReady}
-          className="inline-flex items-center justify-center gap-2 rounded-lg bg-success/90 px-3.5 py-2.5 text-body font-medium text-white transition-colors hover:bg-success disabled:opacity-45"
-        >
-          {Icons.checkCircle({ size: 15 })}
-          جاهز
-        </button>
-        <Button
-          className="gap-2 py-2.5"
-          variant="secondary"
-          type="button"
-          disabled={busy}
-          onClick={onCollected}
-        >
-          {Icons.package({ size: 15 })}
-          تسليم
-        </Button>
-      </div>
+      <FilePreviewDialog
+        open={preview.open}
+        onClose={() => !busy && closePreview()}
+        title={previewItem?.filename || "معاينة الملف"}
+        src={previewSrc}
+        mime={previewItem?.mime_type}
+        footer={
+          preview.mode === "view" ? (
+            <>
+              {items.length > 1 ? (
+                <div className="me-auto flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="!px-2.5 !py-1.5"
+                    disabled={preview.index <= 0}
+                    onClick={() => setPreview((p) => ({ ...p, index: p.index - 1 }))}
+                  >
+                    السابق
+                  </Button>
+                  <span className="shrink-0 text-meta text-text-muted tabular-nums">
+                    {preview.index + 1} / {items.length}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="!px-2.5 !py-1.5"
+                    disabled={preview.index >= items.length - 1}
+                    onClick={() => setPreview((p) => ({ ...p, index: p.index + 1 }))}
+                  >
+                    التالي
+                  </Button>
+                </div>
+              ) : null}
+              <Button type="button" variant="secondary" onClick={closePreview}>
+                إغلاق
+              </Button>
+            </>
+          ) : (
+            <>
+              {items.length > 1 ? (
+                <div className="me-auto flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="!px-2.5 !py-1.5"
+                    disabled={preview.index <= 0 || busy}
+                    onClick={() => setPreview((p) => ({ ...p, index: p.index - 1 }))}
+                  >
+                    السابق
+                  </Button>
+                  <span className="shrink-0 text-meta text-text-muted tabular-nums">
+                    {preview.index + 1} / {items.length}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="!px-2.5 !py-1.5"
+                    disabled={preview.index >= items.length - 1 || busy}
+                    onClick={() => setPreview((p) => ({ ...p, index: p.index + 1 }))}
+                  >
+                    التالي
+                  </Button>
+                </div>
+              ) : null}
+              <Button type="button" variant="secondary" disabled={busy} onClick={closePreview}>
+                إلغاء
+              </Button>
+              <Button
+                type="button"
+                variant="primary"
+                className="gap-2"
+                disabled={busy}
+                onClick={confirmPrintAction}
+              >
+                {Icons.printer({ size: 16 })}
+                {busy
+                  ? "..."
+                  : preview.mode === "retry"
+                    ? "تأكيد الإعادة"
+                    : "تأكيد الطباعة"}
+              </Button>
+            </>
+          )
+        }
+      />
     </div>
   );
 }

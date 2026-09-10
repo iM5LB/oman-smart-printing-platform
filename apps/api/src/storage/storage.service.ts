@@ -43,15 +43,24 @@ export class StorageService {
     }
   }
 
-  createSignedToken(fileKey: string, ttlSeconds?: number): string {
+  createSignedToken(fileKey: string, ttlSeconds?: number, filename?: string): string {
     const ttl = ttlSeconds ?? this.signedUrlTtl;
     const expiresAt = Date.now() + ttl * 1000;
-    const payload = `${fileKey}:${expiresAt}`;
+    const namePart = filename?.trim()
+      ? Buffer.from(filename.trim(), 'utf8').toString('base64url')
+      : '';
+    const payload = namePart
+      ? `${fileKey}:${expiresAt}:${namePart}`
+      : `${fileKey}:${expiresAt}`;
     const sig = createHmac('sha256', this.secret).update(payload).digest('hex');
     return Buffer.from(`${payload}:${sig}`).toString('base64url');
   }
 
-  verifySignedToken(token: string): string | null {
+  /**
+   * Verifies a signed download token.
+   * Returns file key, and original filename when the token includes one.
+   */
+  verifySignedToken(token: string): { fileKey: string; filename: string | null } | null {
     try {
       const decoded = Buffer.from(token, 'base64url').toString('utf8');
       const lastColon = decoded.lastIndexOf(':');
@@ -62,10 +71,31 @@ export class StorageService {
       const a = Buffer.from(sig, 'utf8');
       const b = Buffer.from(expected, 'utf8');
       if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
-      const sep = payload.lastIndexOf(':');
-      if (sep === -1) return null;
-      const fileKey = payload.slice(0, sep);
-      const expiresAtStr = payload.slice(sep + 1);
+
+      const parts = payload.split(':');
+      if (parts.length < 2) return null;
+
+      let fileKey: string;
+      let expiresAtStr: string;
+      let filename: string | null = null;
+
+      if (parts.length >= 3 && /^\d+$/.test(parts[parts.length - 2] ?? '')) {
+        // fileKey:expiresAt:filenameB64
+        expiresAtStr = parts[parts.length - 2]!;
+        const nameB64 = parts[parts.length - 1]!;
+        fileKey = parts.slice(0, -2).join(':');
+        try {
+          const raw = Buffer.from(nameB64, 'base64url').toString('utf8').trim();
+          filename = raw || null;
+        } catch {
+          filename = null;
+        }
+      } else {
+        // Legacy: fileKey:expiresAt
+        expiresAtStr = parts[parts.length - 1]!;
+        fileKey = parts.slice(0, -1).join(':');
+      }
+
       if (!fileKey || !expiresAtStr) return null;
       if (
         fileKey.includes('..') ||
@@ -76,14 +106,19 @@ export class StorageService {
         return null;
       }
       if (Date.now() > parseInt(expiresAtStr, 10)) return null;
-      return fileKey;
+      return { fileKey, filename };
     } catch {
       return null;
     }
   }
 
-  getSignedUrl(fileKey: string, apiBaseUrl: string, ttlSeconds?: number): string {
-    const token = this.createSignedToken(fileKey, ttlSeconds);
+  getSignedUrl(
+    fileKey: string,
+    apiBaseUrl: string,
+    ttlSeconds?: number,
+    filename?: string | null,
+  ): string {
+    const token = this.createSignedToken(fileKey, ttlSeconds, filename ?? undefined);
     return `${apiBaseUrl}/api/v1/files/download?token=${token}`;
   }
 }

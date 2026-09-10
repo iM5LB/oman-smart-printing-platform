@@ -143,9 +143,9 @@ const DEVICE_STATUS_AR: Record<string, string> = {
 };
 
 const PICKUP_POLICY_AR: Record<string, string> = {
-  require_approval: "يتطلب موافقة",
-  auto_print: "مراجعة أولاً (بدون طباعة تلقائية)",
-  print_on_arrival: "طباعة عند الوصول",
+  require_approval: "مراجعة قبل الطباعة",
+  auto_print: "طباعة تلقائية فور الطلب",
+  print_on_arrival: "طباعة عند وصول العميل",
   hold_until_paid: "إيقاف حتى الدفع",
 };
 

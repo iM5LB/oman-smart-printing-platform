@@ -45,6 +45,11 @@ export class ShopController {
       address?: string | null;
       latitude?: number | null;
       longitude?: number | null;
+      auto_print_paid_orders?: boolean;
+      pay_at_pickup_print_policy?: string;
+      file_retention_policy?: string;
+      paid_orders_priority?: string;
+      tax_rate_bps?: number;
     },
   ) {
     const { device, store } = req[DEVICE_STORE_KEY];

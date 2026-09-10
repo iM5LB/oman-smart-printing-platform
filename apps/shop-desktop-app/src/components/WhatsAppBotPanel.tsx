@@ -4,7 +4,7 @@ import { Badge, Button, Input } from "./ui";
 
 const SETUP_PW_KEY = "omsp.setupPassword";
 
-export function WhatsAppBotPanel() {
+export function WhatsAppBotPanel({ compact = false }: { compact?: boolean }) {
   const [password, setPassword] = useState(() => {
     try {
       return localStorage.getItem(SETUP_PW_KEY) ?? "";
@@ -28,7 +28,10 @@ export function WhatsAppBotPanel() {
         if (st.status === "ready") {
           setQrDataUrl(null);
         } else {
-          const qr = await otpBotApi.qr(setupPassword, forceQr || st.status !== "qr");
+          const qr = await otpBotApi.qr(
+            setupPassword,
+            forceQr || st.status !== "qr",
+          );
           setQrDataUrl(qr.qr_data_url);
           setStatus((prev) =>
             prev
@@ -94,11 +97,20 @@ export function WhatsAppBotPanel() {
         ? "warning"
         : "neutral";
 
+  const qrSize = compact ? "size-[140px]" : "size-[220px]";
+
   return (
-    <div className="space-y-3 p-3">
-      <p className="text-meta text-text-secondary">
-        اربط رقم واتساب لإرسال رموز OTP. واتساب → الإعدادات → الأجهزة المرتبطة → ربط جهاز.
-      </p>
+    <div className="flex h-full min-h-0 flex-col gap-2">
+      {!compact ? (
+        <p className="shrink-0 text-meta text-text-secondary">
+          اربط رقم واتساب لإرسال رموز OTP. واتساب → الإعدادات → الأجهزة المرتبطة →
+          ربط جهاز.
+        </p>
+      ) : (
+        <p className="shrink-0 text-caption text-text-muted">
+          واتساب → الأجهزة المرتبطة → ربط جهاز
+        </p>
+      )}
 
       {!unlocked ? (
         <form className="space-y-2" onSubmit={(e) => void onUnlock(e)}>
@@ -111,6 +123,7 @@ export function WhatsAppBotPanel() {
               onChange={(e) => setPassword(e.target.value)}
               placeholder="LIBRARY_SETUP_PASSWORD"
               autoComplete="off"
+              className="!py-2"
             />
           </label>
           {error ? <p className="text-meta text-danger">{error}</p> : null}
@@ -119,8 +132,8 @@ export function WhatsAppBotPanel() {
           </Button>
         </form>
       ) : (
-        <div className="space-y-3">
-          <div className="flex flex-wrap items-center gap-2">
+        <div className="flex min-h-0 flex-1 flex-col gap-2">
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
             <Badge tone={tone}>
               {status?.status === "ready"
                 ? "مرتبط"
@@ -128,48 +141,49 @@ export function WhatsAppBotPanel() {
                   ? "امسح الرمز"
                   : status?.status ?? "…"}
             </Badge>
-            <span className="text-caption text-text-muted">{status?.detail}</span>
+            <span className="truncate text-caption text-text-muted">
+              {status?.detail}
+            </span>
           </div>
 
-          {status?.status === "ready" ? (
-            <p className="rounded-lg border border-success/30 bg-success/10 px-3 py-2 text-meta text-success">
-              البوت جاهز لإرسال OTP عبر واتساب.
-              {status.connected_user ? (
-                <span className="mt-1 block opacity-80" dir="ltr">
-                  {status.connected_user}
-                </span>
-              ) : null}
-            </p>
-          ) : qrDataUrl ? (
-            <div className="flex flex-col items-center gap-2">
+          <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-1.5">
+            {status?.status === "ready" ? (
+              <p className="w-full rounded-lg border border-success/30 bg-success/10 px-3 py-2 text-center text-meta text-success">
+                البوت جاهز لإرسال OTP
+                {status.connected_user ? (
+                  <span className="mt-1 block opacity-80" dir="ltr">
+                    {status.connected_user}
+                  </span>
+                ) : null}
+              </p>
+            ) : qrDataUrl ? (
               <img
                 src={qrDataUrl}
                 alt="WhatsApp QR"
-                className="size-[220px] rounded-xl bg-white p-2"
+                className={`${qrSize} max-h-full rounded-xl bg-white object-contain p-1.5`}
               />
-              <p className="text-center text-caption text-text-muted">
-                يُحدَّث الرمز تلقائياً — استخدم رقماً احتياطياً إن أمكن
-              </p>
-            </div>
-          ) : (
-            <p className="text-meta text-text-muted">جاري تجهيز رمز QR…</p>
-          )}
+            ) : (
+              <p className="text-meta text-text-muted">جاري تجهيز رمز QR…</p>
+            )}
+          </div>
 
-          {error ? <p className="text-meta text-danger">{error}</p> : null}
+          {error ? <p className="shrink-0 text-meta text-danger">{error}</p> : null}
 
-          <div className="flex flex-wrap gap-2">
+          <div className="flex shrink-0 flex-wrap gap-1.5">
             <Button
               type="button"
               variant="secondary"
               disabled={busy}
+              className="!px-2.5 !py-1.5"
               onClick={() => void refresh(password.trim(), true)}
             >
-              تحديث الرمز
+              تحديث
             </Button>
             <Button
               type="button"
               variant="danger"
               disabled={busy || status?.status !== "ready"}
+              className="!px-2.5 !py-1.5"
               onClick={() => void onLogoutBot()}
             >
               قطع الربط
@@ -178,6 +192,7 @@ export function WhatsAppBotPanel() {
               type="button"
               variant="ghost"
               disabled={busy}
+              className="!px-2.5 !py-1.5"
               onClick={() => {
                 setUnlocked(false);
                 setStatus(null);

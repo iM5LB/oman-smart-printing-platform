@@ -12,8 +12,29 @@ import { Button, Input, Panel } from "../components/ui";
 import { Icons } from "../components/icons";
 import { PageHeading } from "../components/PageHeading";
 import { WhatsAppBotPanel } from "../components/WhatsAppBotPanel";
+import {
+  fileRetentionAr,
+  pickupPolicyAr,
+  queuePriorityAr,
+} from "../lib/labels";
 
 const APP_VERSION = "v0.1.1";
+
+const PICKUP_POLICIES = [
+  "require_approval",
+  "print_on_arrival",
+  "auto_print",
+] as const;
+
+const RETENTION_POLICIES = [
+  "immediate",
+  "one_hour",
+  "twenty_four_hours",
+  "three_days",
+  "seven_days",
+] as const;
+
+const PRIORITIES = ["urgent", "normal", "low"] as const;
 
 function SectionTitle({
   title,
@@ -25,13 +46,85 @@ function SectionTitle({
   trailing?: ReactNode;
 }) {
   return (
-    <div className="flex shrink-0 items-center gap-2 border-b border-border-default px-3 py-2">
-      <span className="flex size-6 items-center justify-center rounded-md bg-primary/15 text-primary">
+    <div className="flex shrink-0 items-center gap-2 border-b border-border-default px-2.5 py-1.5">
+      <span className="flex size-5 items-center justify-center rounded-md bg-primary/15 text-primary">
         {icon}
       </span>
       <h2 className="text-section">{title}</h2>
       {trailing ? <div className="ms-auto">{trailing}</div> : null}
     </div>
+  );
+}
+
+function ToggleRow({
+  title,
+  description,
+  checked,
+  disabled,
+  onChange,
+}: {
+  title: string;
+  description: string;
+  checked: boolean;
+  disabled?: boolean;
+  onChange: (next: boolean) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-2 rounded-lg border border-border-default bg-bg-elevated/40 px-2.5 py-2">
+      <div className="min-w-0">
+        <p className="text-meta font-medium text-text-primary">{title}</p>
+        <p className="truncate text-caption text-text-muted">{description}</p>
+      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        disabled={disabled}
+        dir="ltr"
+        onClick={() => onChange(!checked)}
+        className={`relative h-6 w-10 shrink-0 rounded-full transition-colors disabled:opacity-45 ${
+          checked ? "bg-primary" : "bg-bg-hover"
+        }`}
+      >
+        <span
+          className={`absolute top-0.5 size-5 rounded-full bg-white shadow transition-transform ${
+            checked ? "left-4" : "left-0.5"
+          }`}
+        />
+      </button>
+    </div>
+  );
+}
+
+function SelectField({
+  label,
+  value,
+  options,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: Array<{ value: string; label: string }>;
+  disabled?: boolean;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="block min-w-0 space-y-0.5">
+      <span className="text-caption text-text-muted">{label}</span>
+      <select
+        className="w-full rounded-lg border border-border-default bg-bg-elevated px-2.5 py-1.5 text-meta text-text-primary outline-none transition-colors focus:border-primary disabled:opacity-45"
+        value={value}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.value)}
+      >
+        {options.map((opt) => (
+          <option key={opt.value} value={opt.value}>
+            {opt.label}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 
@@ -47,6 +140,7 @@ export function SettingsPage() {
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
   const [saveErr, setSaveErr] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [opsBusy, setOpsBusy] = useState(false);
 
   const [editName, setEditName] = useState("");
   const [editPhone, setEditPhone] = useState("");
@@ -58,6 +152,12 @@ export function SettingsPage() {
   const [devicePasswordConfirm, setDevicePasswordConfirm] = useState("");
   const [deviceConfirmPhone, setDeviceConfirmPhone] = useState("");
 
+  const [autoPrintPaid, setAutoPrintPaid] = useState(true);
+  const [pickupPolicy, setPickupPolicy] = useState("require_approval");
+  const [retention, setRetention] = useState("twenty_four_hours");
+  const [priority, setPriority] = useState("urgent");
+  const [taxPercent, setTaxPercent] = useState("0");
+
   useEffect(() => {
     if (!store) return;
     setEditName(store.name ?? "");
@@ -67,14 +167,27 @@ export function SettingsPage() {
     setEditArea(store.area ?? "");
     setEditAddress(store.address ?? "");
     setDeviceConfirmPhone(store.device_confirm_phone ?? "");
+    setAutoPrintPaid(store.auto_print_paid_orders ?? true);
+    setPickupPolicy(store.pay_at_pickup_print_policy ?? "require_approval");
+    setRetention(store.file_retention_policy ?? "twenty_four_hours");
+    setPriority(store.paid_orders_priority ?? "urgent");
+    setTaxPercent(
+      store.tax_rate_bps != null
+        ? String((store.tax_rate_bps / 100).toFixed(2)).replace(/\.00$/, "")
+        : "0",
+    );
   }, [store]);
+
+  const flash = (ok: string | null, err: string | null = null) => {
+    setSaveMsg(ok);
+    setSaveErr(err);
+  };
 
   const saveStore = async (e: FormEvent) => {
     e.preventDefault();
     if (!token) return;
     setSaving(true);
-    setSaveErr(null);
-    setSaveMsg(null);
+    flash(null);
     try {
       await shopApi.updateStore(token, {
         name: editName.trim(),
@@ -85,9 +198,9 @@ export function SettingsPage() {
         address: editAddress.trim() || null,
       });
       await refreshMe();
-      setSaveMsg("تم حفظ بيانات المكتبة");
+      flash("تم حفظ بيانات المكتبة");
     } catch (err) {
-      setSaveErr(err instanceof Error ? err.message : "فشل الحفظ");
+      flash(null, err instanceof Error ? err.message : "فشل الحفظ");
     } finally {
       setSaving(false);
     }
@@ -97,16 +210,15 @@ export function SettingsPage() {
     e.preventDefault();
     if (!token) return;
     if (devicePassword.length < 6) {
-      setSaveErr("كلمة مرور الجهاز يجب أن تكون 6 أحرف على الأقل");
+      flash(null, "كلمة مرور الجهاز يجب أن تكون 6 أحرف على الأقل");
       return;
     }
     if (devicePassword !== devicePasswordConfirm) {
-      setSaveErr("كلمتا مرور الجهاز غير متطابقتين");
+      flash(null, "كلمتا مرور الجهاز غير متطابقتين");
       return;
     }
     setSaving(true);
-    setSaveErr(null);
-    setSaveMsg(null);
+    flash(null);
     try {
       await shopApi.setDeviceSecurity(token, {
         device_password: devicePassword,
@@ -115,12 +227,44 @@ export function SettingsPage() {
       setDevicePassword("");
       setDevicePasswordConfirm("");
       await refreshMe();
-      setSaveMsg("تم حفظ أمان الجهاز");
+      flash("تم حفظ أمان الجهاز");
     } catch (err) {
-      setSaveErr(err instanceof Error ? err.message : "فشل الحفظ");
+      flash(null, err instanceof Error ? err.message : "فشل الحفظ");
     } finally {
       setSaving(false);
     }
+  };
+
+  const patchOps = async (
+    body: Parameters<typeof shopApi.updateStore>[1],
+    okMsg: string,
+  ) => {
+    if (!token) return;
+    setOpsBusy(true);
+    flash(null);
+    try {
+      await shopApi.updateStore(token, body);
+      await refreshMe();
+      flash(okMsg);
+    } catch (err) {
+      flash(null, err instanceof Error ? err.message : "فشل الحفظ");
+      await refreshMe().catch(() => undefined);
+    } finally {
+      setOpsBusy(false);
+    }
+  };
+
+  const saveTax = async (e: FormEvent) => {
+    e.preventDefault();
+    const pct = Number(taxPercent.replace(",", "."));
+    if (!Number.isFinite(pct) || pct < 0 || pct > 100) {
+      flash(null, "نسبة الضريبة يجب أن تكون بين 0 و 100");
+      return;
+    }
+    await patchOps(
+      { tax_rate_bps: Math.round(pct * 100) },
+      "تم حفظ نسبة الضريبة",
+    );
   };
 
   const runUpdateCheck = async () => {
@@ -190,11 +334,11 @@ export function SettingsPage() {
       : "تحقق من التحديثات";
 
   return (
-    <div className="page-fit gap-2.5">
+    <div className="page-fit gap-2 overflow-hidden">
       <PageHeading
         icon={Icons.settings({ size: 22 })}
         title="الإعدادات"
-        description="تعديل بيانات المكتبة وأمان الجهاز وربط واتساب OTP"
+        description="طباعة، بيانات المكتبة، أمان الجهاز، وواتساب OTP"
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-meta text-text-muted tabular-nums" dir="ltr">
@@ -205,7 +349,7 @@ export function SettingsPage() {
               variant="secondary"
               disabled={updateBusy}
               onClick={() => void runUpdateCheck()}
-              className="min-w-[11rem]"
+              className="min-w-[10rem] !py-1.5"
             >
               {!updateMsg || updateBusy ? Icons.refresh({ size: 14 }) : null}
               {updateButtonLabel}
@@ -216,7 +360,7 @@ export function SettingsPage() {
 
       {(saveMsg || saveErr) && (
         <div
-          className={`rounded-xl border px-3 py-2 text-meta ${
+          className={`shrink-0 rounded-lg border px-2.5 py-1.5 text-caption ${
             saveErr
               ? "border-danger/30 bg-danger/10 text-danger"
               : "border-success/30 bg-success/10 text-success"
@@ -226,126 +370,239 @@ export function SettingsPage() {
         </div>
       )}
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-2.5 overflow-auto lg:grid-cols-2 lg:overflow-hidden">
-        <div className="flex min-h-0 flex-col gap-2.5 lg:overflow-auto">
-          <Panel className="overflow-hidden">
-            <SectionTitle title="بيانات المكتبة" icon={Icons.bag({ size: 14 })} />
-            <form className="space-y-2.5 p-3" onSubmit={(e) => void saveStore(e)}>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                <label className="block space-y-1">
-                  <span className="text-caption text-text-muted">الاسم</span>
-                  <Input
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                    required
-                  />
-                </label>
-                <label className="block space-y-1">
-                  <span className="text-caption text-text-muted">الهاتف</span>
-                  <Input
-                    dir="ltr"
-                    value={editPhone}
-                    onChange={(e) => setEditPhone(e.target.value)}
-                    placeholder="+968…"
-                  />
-                </label>
-                <label className="block space-y-1">
-                  <span className="text-caption text-text-muted">المحافظة</span>
-                  <Input
-                    value={editGov}
-                    onChange={(e) => setEditGov(e.target.value)}
-                  />
-                </label>
-                <label className="block space-y-1">
-                  <span className="text-caption text-text-muted">الولاية</span>
-                  <Input
-                    value={editWilayat}
-                    onChange={(e) => setEditWilayat(e.target.value)}
-                  />
-                </label>
-                <label className="block space-y-1">
-                  <span className="text-caption text-text-muted">المنطقة</span>
-                  <Input
-                    value={editArea}
-                    onChange={(e) => setEditArea(e.target.value)}
-                  />
-                </label>
-                <label className="block space-y-1">
-                  <span className="text-caption text-text-muted">العنوان</span>
-                  <Input
-                    value={editAddress}
-                    onChange={(e) => setEditAddress(e.target.value)}
-                  />
-                </label>
-              </div>
-              <Button
-                type="submit"
-                disabled={saving || !token}
-                className="w-full sm:w-auto"
-              >
-                {saving ? "جاري الحفظ…" : "حفظ بيانات المكتبة"}
-              </Button>
-            </form>
-          </Panel>
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-2 overflow-hidden lg:grid-cols-2 lg:grid-rows-2">
+        <Panel className="flex min-h-0 flex-col overflow-hidden">
+          <SectionTitle
+            title="الطباعة والتشغيل"
+            icon={Icons.printer({ size: 13 })}
+          />
+          <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden p-2.5">
+            <ToggleRow
+              title="طباعة تلقائية للمدفوع مسبقاً"
+              description="بعد الدفع الإلكتروني يُرسل للطابعة مباشرة"
+              checked={autoPrintPaid}
+              disabled={opsBusy || !token}
+              onChange={(next) => {
+                setAutoPrintPaid(next);
+                void patchOps(
+                  { auto_print_paid_orders: next },
+                  next
+                    ? "تم تفعيل الطباعة التلقائية للمدفوع مسبقاً"
+                    : "تم إيقاف الطباعة التلقائية للمدفوع مسبقاً",
+                );
+              }}
+            />
 
-          <Panel className="overflow-hidden">
-            <SectionTitle title="أمان الجهاز" icon={Icons.settings({ size: 14 })} />
-            <form
-              className="space-y-2.5 p-3"
-              onSubmit={(e) => void saveDeviceSecurity(e)}
-            >
-              <label className="block space-y-1">
-                <span className="text-caption text-text-muted">هاتف تأكيد OTP</span>
-                <Input
-                  dir="ltr"
-                  value={deviceConfirmPhone}
-                  onChange={(e) => setDeviceConfirmPhone(e.target.value)}
-                  placeholder="+968…"
-                  required
-                />
-              </label>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                <label className="block space-y-1">
-                  <span className="text-caption text-text-muted">
-                    كلمة مرور الجهاز الجديدة
-                  </span>
-                  <Input
-                    type="password"
-                    dir="ltr"
-                    value={devicePassword}
-                    onChange={(e) => setDevicePassword(e.target.value)}
-                    minLength={6}
-                    required
-                  />
-                </label>
-                <label className="block space-y-1">
-                  <span className="text-caption text-text-muted">تأكيد كلمة المرور</span>
-                  <Input
-                    type="password"
-                    dir="ltr"
-                    value={devicePasswordConfirm}
-                    onChange={(e) => setDevicePasswordConfirm(e.target.value)}
-                    minLength={6}
-                    required
-                  />
-                </label>
-              </div>
-              <Button
-                type="submit"
-                disabled={saving || !token}
-                className="w-full sm:w-auto"
+            <div className="grid min-h-0 grid-cols-1 gap-2 sm:grid-cols-2">
+              <SelectField
+                label="الدفع عند الاستلام"
+                value={pickupPolicy}
+                disabled={opsBusy || !token}
+                options={PICKUP_POLICIES.map((v) => ({
+                  value: v,
+                  label: pickupPolicyAr(v),
+                }))}
+                onChange={(v) => {
+                  setPickupPolicy(v);
+                  void patchOps(
+                    { pay_at_pickup_print_policy: v },
+                    "تم حفظ سياسة الدفع عند الاستلام",
+                  );
+                }}
+              />
+              <SelectField
+                label="احتفاظ الملفات"
+                value={retention}
+                disabled={opsBusy || !token}
+                options={RETENTION_POLICIES.map((v) => ({
+                  value: v,
+                  label: fileRetentionAr(v),
+                }))}
+                onChange={(v) => {
+                  setRetention(v);
+                  void patchOps(
+                    { file_retention_policy: v },
+                    "تم حفظ سياسة احتفاظ الملفات",
+                  );
+                }}
+              />
+              <SelectField
+                label="أولوية المدفوع"
+                value={priority}
+                disabled={opsBusy || !token}
+                options={PRIORITIES.map((v) => ({
+                  value: v,
+                  label: queuePriorityAr(v),
+                }))}
+                onChange={(v) => {
+                  setPriority(v);
+                  void patchOps(
+                    { paid_orders_priority: v },
+                    "تم حفظ أولوية الطلبات المدفوعة",
+                  );
+                }}
+              />
+              <form
+                className="flex min-w-0 items-end gap-2"
+                onSubmit={(e) => void saveTax(e)}
               >
-                {saving ? "جاري الحفظ…" : "حفظ أمان الجهاز"}
-              </Button>
-            </form>
-          </Panel>
-        </div>
+                <label className="min-w-0 flex-1 space-y-0.5">
+                  <span className="text-caption text-text-muted">الضريبة %</span>
+                  <Input
+                    dir="ltr"
+                    inputMode="decimal"
+                    value={taxPercent}
+                    onChange={(e) => setTaxPercent(e.target.value)}
+                    placeholder="0"
+                    className="!py-1.5"
+                  />
+                </label>
+                <Button
+                  type="submit"
+                  variant="secondary"
+                  disabled={opsBusy || saving || !token}
+                  className="shrink-0 !px-2.5 !py-1.5"
+                >
+                  حفظ
+                </Button>
+              </form>
+            </div>
+
+            <p className="mt-auto text-caption text-text-muted">
+              الدفع داخل المكتبة لا يطبع تلقائياً — استخدم زر الطباعة.
+            </p>
+          </div>
+        </Panel>
 
         <Panel className="flex min-h-0 flex-col overflow-hidden">
-          <SectionTitle title="بوت واتساب OTP" icon={Icons.phone({ size: 14 })} />
-          <div className="min-h-0 flex-1 overflow-auto p-3">
-            <WhatsAppBotPanel />
+          <SectionTitle title="بوت واتساب OTP" icon={Icons.phone({ size: 13 })} />
+          <div className="min-h-0 flex-1 overflow-hidden p-2.5">
+            <WhatsAppBotPanel compact />
           </div>
+        </Panel>
+
+        <Panel className="flex min-h-0 flex-col overflow-hidden">
+          <SectionTitle title="بيانات المكتبة" icon={Icons.bag({ size: 13 })} />
+          <form
+            className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden p-2.5"
+            onSubmit={(e) => void saveStore(e)}
+          >
+            <div className="grid min-h-0 flex-1 grid-cols-2 content-start gap-x-2 gap-y-1.5">
+              <label className="block space-y-0.5">
+                <span className="text-caption text-text-muted">الاسم</span>
+                <Input
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  required
+                  className="!py-1.5"
+                />
+              </label>
+              <label className="block space-y-0.5">
+                <span className="text-caption text-text-muted">الهاتف</span>
+                <Input
+                  dir="ltr"
+                  value={editPhone}
+                  onChange={(e) => setEditPhone(e.target.value)}
+                  placeholder="+968…"
+                  className="!py-1.5"
+                />
+              </label>
+              <label className="block space-y-0.5">
+                <span className="text-caption text-text-muted">المحافظة</span>
+                <Input
+                  value={editGov}
+                  onChange={(e) => setEditGov(e.target.value)}
+                  className="!py-1.5"
+                />
+              </label>
+              <label className="block space-y-0.5">
+                <span className="text-caption text-text-muted">الولاية</span>
+                <Input
+                  value={editWilayat}
+                  onChange={(e) => setEditWilayat(e.target.value)}
+                  className="!py-1.5"
+                />
+              </label>
+              <label className="block space-y-0.5">
+                <span className="text-caption text-text-muted">المنطقة</span>
+                <Input
+                  value={editArea}
+                  onChange={(e) => setEditArea(e.target.value)}
+                  className="!py-1.5"
+                />
+              </label>
+              <label className="block space-y-0.5">
+                <span className="text-caption text-text-muted">العنوان</span>
+                <Input
+                  value={editAddress}
+                  onChange={(e) => setEditAddress(e.target.value)}
+                  className="!py-1.5"
+                />
+              </label>
+            </div>
+            <Button
+              type="submit"
+              disabled={saving || !token}
+              className="w-full shrink-0 !py-1.5 sm:w-auto"
+            >
+              {saving ? "جاري الحفظ…" : "حفظ بيانات المكتبة"}
+            </Button>
+          </form>
+        </Panel>
+
+        <Panel className="flex min-h-0 flex-col overflow-hidden">
+          <SectionTitle title="أمان الجهاز" icon={Icons.settings({ size: 13 })} />
+          <form
+            className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden p-2.5"
+            onSubmit={(e) => void saveDeviceSecurity(e)}
+          >
+            <label className="block space-y-0.5">
+              <span className="text-caption text-text-muted">هاتف تأكيد OTP</span>
+              <Input
+                dir="ltr"
+                value={deviceConfirmPhone}
+                onChange={(e) => setDeviceConfirmPhone(e.target.value)}
+                placeholder="+968…"
+                required
+                className="!py-1.5"
+              />
+            </label>
+            <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+              <label className="block space-y-0.5">
+                <span className="text-caption text-text-muted">
+                  كلمة مرور الجهاز الجديدة
+                </span>
+                <Input
+                  type="password"
+                  dir="ltr"
+                  value={devicePassword}
+                  onChange={(e) => setDevicePassword(e.target.value)}
+                  minLength={6}
+                  required
+                  className="!py-1.5"
+                />
+              </label>
+              <label className="block space-y-0.5">
+                <span className="text-caption text-text-muted">تأكيد كلمة المرور</span>
+                <Input
+                  type="password"
+                  dir="ltr"
+                  value={devicePasswordConfirm}
+                  onChange={(e) => setDevicePasswordConfirm(e.target.value)}
+                  minLength={6}
+                  required
+                  className="!py-1.5"
+                />
+              </label>
+            </div>
+            <Button
+              type="submit"
+              disabled={saving || !token}
+              className="mt-auto w-full shrink-0 !py-1.5 sm:w-auto"
+            >
+              {saving ? "جاري الحفظ…" : "حفظ أمان الجهاز"}
+            </Button>
+          </form>
         </Panel>
       </div>
     </div>
