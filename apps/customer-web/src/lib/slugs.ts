@@ -9,6 +9,8 @@ export const RESERVED_SLUGS = new Set([
   'login',
   'setup',
   'admin',
+  'privacy',
+  'terms',
   'favicon.ico',
   '_next',
 ]);

@@ -1,5 +1,5 @@
-import { LibraryOnboardingHome } from '@/components/library-onboarding-home';
+import { HomeDirectory } from '@/components/home-directory';
 
 export default function HomePage() {
-  return <LibraryOnboardingHome />;
+  return <HomeDirectory />;
 }

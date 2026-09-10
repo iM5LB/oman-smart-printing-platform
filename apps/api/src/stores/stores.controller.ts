@@ -1,4 +1,4 @@
-import { Controller, Get, NotFoundException, Param, Res } from '@nestjs/common';
+import { Controller, Get, NotFoundException, Param, Query, Res } from '@nestjs/common';
 import type { Response } from 'express';
 import { StoresService } from './stores.service';
 import { StorageService } from '../storage/storage.service';
@@ -9,6 +9,12 @@ export class StoresController {
     private readonly storesService: StoresService,
     private readonly storage: StorageService,
   ) {}
+
+  /** Public directory — must stay above `:slug` routes. */
+  @Get()
+  list(@Query('q') q?: string) {
+    return this.storesService.listPublic(q);
+  }
 
   @Get(':slug/config')
   getConfig(@Param('slug') slug: string) {

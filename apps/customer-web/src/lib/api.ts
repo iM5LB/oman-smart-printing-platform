@@ -25,6 +25,24 @@ export async function apiFetch<T>(path: string, options?: RequestInit): Promise<
   return res.json();
 }
 
+export async function listStores(query?: string): Promise<{
+  stores: Array<{
+    slug: string;
+    name: string;
+    logo_url: string | null;
+    governorate: string | null;
+    wilayat: string | null;
+    area: string | null;
+    address: string | null;
+    location_label: string | null;
+    is_open: boolean;
+  }>;
+}> {
+  const q = query?.trim();
+  const path = q ? `/stores?q=${encodeURIComponent(q)}` : '/stores';
+  return apiFetch(path);
+}
+
 export interface UploadedFile {
   file_key: string;
   original_filename: string;

@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 
-/** Web library admin removed — setup is on `/`, daily ops are in the desktop app. */
+/** Legacy path — setup lives at `/onboarding`, directory at `/`. */
 export default function LibraryIndexRedirect() {
-  redirect('/');
+  redirect('/onboarding');
 }

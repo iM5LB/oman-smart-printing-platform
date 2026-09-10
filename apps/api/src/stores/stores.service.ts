@@ -6,6 +6,55 @@ import { PRISMA } from '../prisma/prisma.module';
 export class StoresService {
   constructor(@Inject(PRISMA) private readonly db: PrismaClient) {}
 
+  async listPublic(query?: string) {
+    const q = query?.trim();
+    const stores = await this.db.store.findMany({
+      where: {
+        isActive: true,
+        ...(q
+          ? {
+              OR: [
+                { name: { contains: q, mode: 'insensitive' } },
+                { slug: { contains: q, mode: 'insensitive' } },
+                { governorate: { contains: q, mode: 'insensitive' } },
+                { wilayat: { contains: q, mode: 'insensitive' } },
+                { area: { contains: q, mode: 'insensitive' } },
+                { address: { contains: q, mode: 'insensitive' } },
+              ],
+            }
+          : {}),
+      },
+      select: {
+        slug: true,
+        name: true,
+        logoUrl: true,
+        governorate: true,
+        wilayat: true,
+        area: true,
+        address: true,
+        openingHours: { orderBy: { dayOfWeek: 'asc' } },
+      },
+      orderBy: { name: 'asc' },
+      take: 100,
+    });
+
+    return {
+      stores: stores.map((store) => ({
+        slug: store.slug,
+        name: store.name,
+        logo_url: this.publicLogoUrl(store.slug, store.logoUrl),
+        governorate: store.governorate,
+        wilayat: store.wilayat,
+        area: store.area,
+        address: store.address,
+        location_label: [store.area, store.wilayat, store.governorate]
+          .filter(Boolean)
+          .join('، ') || store.address || null,
+        is_open: this.checkIfOpen(store.openingHours),
+      })),
+    };
+  }
+
   async findBySlug(slug: string) {
     let store;
     try {

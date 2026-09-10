@@ -480,9 +480,12 @@ export function LibraryOnboardingHome() {
                 <a href={shopPath} className="btn-primary flex-1 text-center">
                   فتح صفحة العملاء
                 </a>
+                <a href="/" className="btn-outline flex-1 text-center">
+                  العودة للرئيسية
+                </a>
                 <button
                   type="button"
-                  className="btn-outline flex-1"
+                  className="btn-ghost flex-1"
                   onClick={() => {
                     clearLibraryToken();
                     clearSetupToken();
@@ -510,7 +513,7 @@ export function LibraryOnboardingHome() {
                     setError('');
                   }}
                 >
-                  إعداد مكتبة جديدة
+                  إعداد مكتبة أخرى
                 </button>
               </div>
             </section>
