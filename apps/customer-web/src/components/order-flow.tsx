@@ -212,6 +212,12 @@ export function OrderFlow({ store }: OrderFlowProps) {
           {step === 'landing' && (
             <div className="landing-layout animate-fade-in-up">
               <div className="landing-hero">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/brand/tibaa-icon.png?v=13"
+                  alt=""
+                  className="landing-logo"
+                />
                 <h2 className="landing-title">اطبع ملفاتك بسهولة</h2>
                 <p className="landing-sub">ارفع ملفاتك واطلب الطباعة قبل وصولك للمكتبة</p>
               </div>

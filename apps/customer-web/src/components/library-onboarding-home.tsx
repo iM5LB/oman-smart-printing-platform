@@ -31,6 +31,7 @@ import {
 } from '@/lib/library-session';
 import { slugifyBrand } from '@/lib/slugs';
 import { cn } from '@/lib/utils';
+import { TibaaBrand } from '@/components/tibaa-brand';
 import type { PickedLocation } from '@/components/location-picker-map';
 
 const LocationPickerMap = dynamic(
@@ -382,6 +383,7 @@ export function LibraryOnboardingHome() {
       <div className="page-shell">
         <div className="page-content setup-lock animate-fade-in">
           <div className="setup-lock-top">
+            <TibaaBrand variant="icon" size="md" className="!mb-2 !h-20 !w-20" />
             <h1 className="setup-lock-title">إعداد المكتبة</h1>
             <p className="setup-lock-sub">أدخل كلمة مرور الإعداد لبدء تسجيل مكتبة جديدة</p>
           </div>
@@ -426,6 +428,7 @@ export function LibraryOnboardingHome() {
       <div className="page-content setup-flow">
         <header className="setup-flow-head">
           <div className="setup-flow-head-row">
+            <TibaaBrand variant="icon" size="sm" className="shrink-0 !h-11 !w-11" />
             <div className="min-w-0 flex-1">
               <p className="setup-flow-kicker">
                 إعداد المكتبة · خطوة {stepMeta.num} من 4
