@@ -118,8 +118,20 @@ export function StoreInfoCard({
 }
 
 function getOmanDayOfWeek(): number {
-  const jsDay = new Date().getDay();
-  return jsDay === 6 ? 0 : jsDay + 1;
+  const weekday = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Muscat',
+    weekday: 'short',
+  }).format(new Date());
+  const map: Record<string, number> = {
+    Sat: 0,
+    Sun: 1,
+    Mon: 2,
+    Tue: 3,
+    Wed: 4,
+    Thu: 5,
+    Fri: 6,
+  };
+  return map[weekday] ?? 0;
 }
 
 function getTodayHours(store: StorePublicInfo) {
