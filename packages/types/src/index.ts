@@ -56,8 +56,8 @@ export const PAPER_SIZE_AR: Record<string, string> = {
 
 export const PRINT_SIDES_AR: Record<string, string> = {
   single: 'وجه واحد',
-  duplex_long: 'وجهين',
-  duplex_short: 'وجهين',
+  duplex_long: 'وجهين (طولي)',
+  duplex_short: 'وجهين (عرضي)',
 };
 
 export const ORIENTATION_AR: Record<string, string> = {

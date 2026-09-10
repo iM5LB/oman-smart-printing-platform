@@ -58,7 +58,7 @@ const SIDES_AR: Record<string, string> = {
   simplex: "وجه واحد",
   duplex: "وجهين",
   duplex_long: "وجهين (طويل)",
-  duplex_short: "وجهين (قصير)",
+  duplex_short: "وجهين (عرضي)",
 };
 
 function lookup(map: Record<string, string>, value: string | null | undefined, fallback = "—") {
@@ -144,7 +144,7 @@ const DEVICE_STATUS_AR: Record<string, string> = {
 
 const PICKUP_POLICY_AR: Record<string, string> = {
   require_approval: "يتطلب موافقة",
-  auto_print: "طباعة تلقائية",
+  auto_print: "مراجعة أولاً (بدون طباعة تلقائية)",
   print_on_arrival: "طباعة عند الوصول",
   hold_until_paid: "إيقاف حتى الدفع",
 };

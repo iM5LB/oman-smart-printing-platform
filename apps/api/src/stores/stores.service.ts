@@ -91,18 +91,57 @@ export class StoresService {
 
     if (!store) throw new NotFoundException('المكتبة غير موجودة');
 
+    let finishing = store.finishingServices;
+    if (finishing.length === 0) {
+      finishing = await this.ensureDefaultFinishingServices(store.id);
+    }
+
     return {
       pricing: store.pricingRules.map((r) => ({
         paper_size: r.paperSize,
         color_mode: r.colorMode,
         price_per_page_baisa: r.pricePerPage,
       })),
-      finishing_services: store.finishingServices.map((f) => ({
+      finishing_services: finishing.map((f) => ({
         id: f.id,
         name_ar: f.nameAr,
         price_baisa: f.priceBaisa,
       })),
     };
+  }
+
+  /** Seed common post-print services if the library has none (تدبيس / تجليد / تغليف حراري). */
+  private async ensureDefaultFinishingServices(storeId: string) {
+    const defaults = [
+      { nameAr: 'تدبيس', priceBaisa: 100, sortOrder: 1 },
+      { nameAr: 'تجليد', priceBaisa: 500, sortOrder: 2 },
+      { nameAr: 'تغليف حراري', priceBaisa: 300, sortOrder: 3 },
+    ];
+
+    const existing = await this.db.finishingService.findMany({ where: { storeId } });
+    if (existing.length === 0) {
+      await this.db.finishingService.createMany({
+        data: defaults.map((d) => ({ storeId, ...d, isActive: true })),
+      });
+    } else {
+      // Reactivate inactive defaults so the web options reappear.
+      const inactiveDefaults = existing.filter(
+        (f) =>
+          !f.isActive &&
+          defaults.some((d) => d.nameAr === f.nameAr),
+      );
+      if (inactiveDefaults.length) {
+        await this.db.finishingService.updateMany({
+          where: { id: { in: inactiveDefaults.map((f) => f.id) } },
+          data: { isActive: true },
+        });
+      }
+    }
+
+    return this.db.finishingService.findMany({
+      where: { storeId, isActive: true },
+      orderBy: { sortOrder: 'asc' },
+    });
   }
 
   private checkIfOpen(

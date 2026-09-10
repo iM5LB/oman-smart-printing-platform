@@ -30,29 +30,45 @@ export function getApiBase(): string {
   return PRODUCTION_API_BASE;
 }
 
+/** Production customer web — release builds always use this (no trailing slash). */
+export const PRODUCTION_WEB_BASE = "https://omsp-web.onrender.com";
+
 /** Customer web origin (no trailing slash). */
 export function getWebBase(): string {
   const fromEnv = import.meta.env.VITE_WEB_URL;
   if (fromEnv) return normalizeApiBase(fromEnv);
-  return "https://omsp-web.onrender.com";
+  return PRODUCTION_WEB_BASE;
 }
 
-/** Full public shop URL for customers (scan / share). */
+/**
+ * Full public shop URL for customers (scan / share).
+ * Always built from the app web base + slug so we never show a stale API host
+ * (e.g. old Render URL or localhost from NEXT_PUBLIC_APP_URL).
+ */
 export function getCustomerShopUrl(store: {
   slug?: string | null;
   customer_shop_url?: string | null;
   customer_shop_path?: string | null;
 } | null | undefined): string | null {
   if (!store) return null;
-  if (store.customer_shop_url) return store.customer_shop_url;
-  if (store.slug) return `${getWebBase()}/${store.slug}`;
+  const base = getWebBase();
+  if (store.slug) return `${base}/${store.slug}`;
   if (store.customer_shop_path?.startsWith("/")) {
-    return `${getWebBase()}${store.customer_shop_path}`;
+    return `${base}${store.customer_shop_path}`;
+  }
+  // Last resort: rewrite known API-provided URL onto the current web base.
+  if (store.customer_shop_url) {
+    try {
+      const u = new URL(store.customer_shop_url);
+      return `${base}${u.pathname.replace(/\/+$/, "") || ""}`;
+    } catch {
+      return store.customer_shop_url;
+    }
   }
   return null;
 }
 
-/** Display form without scheme, e.g. `localhost:3000/m5lb`. */
+/** Display form without scheme, e.g. `omsp-web.onrender.com/m5lb`. */
 export function formatCleanUrl(url: string | null | undefined): string {
   if (!url) return "";
   return url
@@ -146,7 +162,19 @@ export type ShopOrder = {
   total_display?: string;
   created_at: string;
   notes?: string | null;
-  items?: unknown[];
+  items?: Array<{
+    filename?: string;
+    page_count?: number;
+    copies?: number;
+    color_mode?: string;
+    paper_size?: string;
+    sides?: string;
+    orientation?: string;
+    page_range?: string;
+    mime_type?: string | null;
+    finishing?: string[];
+    file_url?: string | null;
+  }>;
 };
 
 export type ShopStats = {

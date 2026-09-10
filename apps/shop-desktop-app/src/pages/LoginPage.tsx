@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 import { shopApi } from "../lib/api";
 import { Button, Input, Panel } from "../components/ui";
@@ -9,6 +9,7 @@ type Step = "credentials" | "otp";
 
 export function LoginPage() {
   const { token, login, loading, error } = useAuth();
+  const navigate = useNavigate();
   const [step, setStep] = useState<Step>("credentials");
   const [storeSlug, setStoreSlug] = useState("");
   const [devicePassword, setDevicePassword] = useState("");
@@ -63,11 +64,21 @@ export function LoginPage() {
         code: otp.trim(),
       });
       await login(res.device_token);
+      // Replace history so WebView/OS "Back" does not return to /login and bounce in again.
+      navigate("/", { replace: true });
     } catch (err) {
       setLocalError(err instanceof Error ? err.message : "فشل الدخول");
     } finally {
       setBusy(false);
     }
+  };
+
+  const backToCredentials = () => {
+    setStep("credentials");
+    setChallengeId(null);
+    setOtp("");
+    setDevCode(null);
+    setLocalError(null);
   };
 
   return (
@@ -169,13 +180,7 @@ export function LoginPage() {
               variant="ghost"
               className="w-full"
               disabled={busy || loading}
-              onClick={() => {
-                setStep("credentials");
-                setChallengeId(null);
-                setOtp("");
-                setDevCode(null);
-                setLocalError(null);
-              }}
+              onClick={backToCredentials}
             >
               رجوع
             </Button>

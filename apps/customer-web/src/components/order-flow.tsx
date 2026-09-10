@@ -8,7 +8,12 @@ import {
   Upload,
 } from 'lucide-react';
 import type { StorePublicInfo } from '@omsp/types';
-import { COLOR_MODE_AR, PAPER_SIZE_AR, PRINT_SIDES_AR } from '@omsp/types';
+import {
+  COLOR_MODE_AR,
+  ORIENTATION_AR,
+  PAPER_SIZE_AR,
+  PRINT_SIDES_AR,
+} from '@omsp/types';
 import { formatOMR, getPhoneErrorMessageAr } from '@omsp/shared';
 import { FileUploadZone } from '@/components/file-upload-zone';
 import type { Step } from '@/components/order-flow-types';
@@ -34,10 +39,12 @@ import {
 
 interface ItemConfig {
   upload: UploadedFile;
-  color_mode: 'bw' | 'color';
-  paper_size: 'A4' | 'A3';
-  sides: 'single' | 'duplex_long';
+  color_mode: 'bw' | 'color' | 'grayscale';
+  paper_size: 'A4' | 'A3' | 'A5';
+  sides: 'single' | 'duplex_long' | 'duplex_short';
+  orientation: 'auto' | 'portrait' | 'landscape';
   copies: number;
+  page_range: string;
   finishing_service_ids: string[];
 }
 
@@ -93,7 +100,9 @@ export function OrderFlow({ store }: OrderFlowProps) {
           color_mode: 'bw',
           paper_size: 'A4',
           sides: 'single',
+          orientation: 'auto',
           copies: 1,
+          page_range: 'all',
           finishing_service_ids: [],
         });
       }
@@ -116,7 +125,9 @@ export function OrderFlow({ store }: OrderFlowProps) {
       color_mode: item.color_mode,
       paper_size: item.paper_size,
       sides: item.sides,
+      orientation: item.orientation,
       copies: item.copies,
+      page_range: item.page_range.trim() || 'all',
       finishing_service_ids: item.finishing_service_ids,
     }));
   }, [items]);
@@ -244,7 +255,7 @@ export function OrderFlow({ store }: OrderFlowProps) {
                   <div>
                     <span className="option-label">نوع الطباعة</span>
                     <div className="option-pills">
-                      {(['bw', 'color'] as const).map((mode) => (
+                      {(['bw', 'color', 'grayscale'] as const).map((mode) => (
                         <button key={mode} type="button" className={cn('option-pill', item.color_mode === mode && 'option-pill-active')} onClick={() => updateItem(i, { color_mode: mode })}>
                           {COLOR_MODE_AR[mode]}
                         </button>
@@ -255,7 +266,7 @@ export function OrderFlow({ store }: OrderFlowProps) {
                   <div>
                     <span className="option-label">حجم الورق</span>
                     <div className="option-toggle-group">
-                      {(['A4', 'A3'] as const).map((size) => (
+                      {(['A4', 'A3', 'A5'] as const).map((size) => (
                         <button key={size} type="button" className={cn('option-toggle', item.paper_size === size && 'option-toggle-active')} onClick={() => updateItem(i, { paper_size: size })}>
                           {PAPER_SIZE_AR[size]}
                         </button>
@@ -266,7 +277,7 @@ export function OrderFlow({ store }: OrderFlowProps) {
                   <div>
                     <span className="option-label">الطباعة</span>
                     <div className="option-pills">
-                      {(['single', 'duplex_long'] as const).map((side) => (
+                      {(['single', 'duplex_long', 'duplex_short'] as const).map((side) => (
                         <button key={side} type="button" className={cn('option-pill', item.sides === side && 'option-pill-active')} onClick={() => updateItem(i, { sides: side })}>
                           {PRINT_SIDES_AR[side]}
                         </button>
@@ -274,9 +285,33 @@ export function OrderFlow({ store }: OrderFlowProps) {
                     </div>
                   </div>
 
-                  {config?.finishing_services.length ? (
-                    <div>
-                      <span className="option-label">خدمات إضافية</span>
+                  <div>
+                    <span className="option-label">اتجاه الصفحة</span>
+                    <div className="option-pills">
+                      {(['auto', 'portrait', 'landscape'] as const).map((ori) => (
+                        <button key={ori} type="button" className={cn('option-pill', item.orientation === ori && 'option-pill-active')} onClick={() => updateItem(i, { orientation: ori })}>
+                          {ORIENTATION_AR[ori]}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <label className="block">
+                    <span className="option-label">
+                      نطاق الصفحات <span className="font-normal text-text-muted">(مثل 1-5 أو all)</span>
+                    </span>
+                    <input
+                      className="input-field"
+                      dir="ltr"
+                      value={item.page_range}
+                      onChange={(e) => updateItem(i, { page_range: e.target.value })}
+                      placeholder="all"
+                    />
+                  </label>
+
+                  <div>
+                    <span className="option-label">خدمات إضافية بعد الطباعة</span>
+                    {config?.finishing_services?.length ? (
                       <div className="space-y-2">
                         {config.finishing_services.map((fs) => (
                           <label key={fs.id} className={cn('payment-option', item.finishing_service_ids.includes(fs.id) && 'payment-option-active')}>
@@ -291,12 +326,19 @@ export function OrderFlow({ store }: OrderFlowProps) {
                                 updateItem(i, { finishing_service_ids: ids });
                               }}
                             />
-                            <span className="text-sm font-medium">{fs.name_ar}</span>
+                            <span className="flex flex-1 items-center justify-between gap-2 text-sm font-medium">
+                              <span>{fs.name_ar}</span>
+                              <span className="text-xs text-text-muted tabular-nums">{formatOMR(fs.price_baisa)}</span>
+                            </span>
                           </label>
                         ))}
                       </div>
-                    </div>
-                  ) : null}
+                    ) : (
+                      <p className="rounded-xl border border-dashed border-border px-3 py-2 text-xs text-text-muted">
+                        لا توجد خدمات إضافية مفعّلة لهذه المكتبة حالياً (مثل التغليف الحراري أو التدبيس).
+                      </p>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
@@ -354,6 +396,18 @@ export function OrderFlow({ store }: OrderFlowProps) {
                     required
                     showError
                     autoComplete="tel"
+                  />
+                </label>
+                <label className="block">
+                  <span className="option-label">
+                    ملاحظات للمكتبة <span className="font-normal text-text-muted">(اختياري)</span>
+                  </span>
+                  <textarea
+                    className="input-field min-h-[88px] resize-y"
+                    value={customerNotes}
+                    onChange={(e) => setCustomerNotes(e.target.value)}
+                    placeholder="مثال: غلاف شفاف، تدبيس من اليسار، جاهز الساعة 5…"
+                    maxLength={500}
                   />
                 </label>
               </div>

@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { ShopOrder } from "../lib/api";
+import { openExternalUrl } from "../lib/openExternal";
 import { Badge, Button, EmptyState } from "./ui";
 import { Icons } from "./icons";
 import {
@@ -12,14 +13,18 @@ import {
   sidesAr,
 } from "../lib/labels";
 
-type OrderItem = {
+export type ShopOrderItem = {
   filename?: string;
   page_count?: number;
   copies?: number;
   color_mode?: string;
   paper_size?: string;
   sides?: string;
+  orientation?: string;
+  page_range?: string;
+  mime_type?: string | null;
   finishing?: string | string[] | null;
+  file_url?: string | null;
 };
 
 function orderLabel(o: ShopOrder) {
@@ -71,6 +76,18 @@ function DetailRow({
   );
 }
 
+function orientationAr(value?: string) {
+  switch (value) {
+    case "portrait":
+      return "عمودي";
+    case "landscape":
+      return "أفقي";
+    case "auto":
+    default:
+      return "تلقائي";
+  }
+}
+
 export function OrderDetailPanel({
   order,
   storeName,
@@ -99,11 +116,8 @@ export function OrderDetailPanel({
     );
   }
 
-  const item = ((order.items as OrderItem[]) ?? [])[0];
+  const items = (order.items as ShopOrderItem[] | undefined) ?? [];
   const paid = isPaymentPaid(order.payment_status);
-  const finishing = Array.isArray(item?.finishing)
-    ? item.finishing.join("، ")
-    : item?.finishing || null;
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -168,43 +182,86 @@ export function OrderDetailPanel({
               {formatOrderTime(order.created_at)}
             </span>
           </DetailRow>
-        </div>
 
-        <p className="mb-1 mt-3 text-section">تفاصيل الطلب</p>
-        <div className="divide-y divide-border-default/70">
-          <DetailRow icon={Icons.file({ size: 15 })} label="اسم الملف">
-            <span className="truncate" dir="ltr" title={item?.filename}>
-              {item?.filename || "—"}
-            </span>
-          </DetailRow>
-          <DetailRow icon={Icons.pages({ size: 15 })} label="عدد الصفحات">
-            <span>
-              {item?.page_count != null ? `${item.page_count} صفحة` : "—"}
-            </span>
-          </DetailRow>
-          <DetailRow icon={Icons.copies({ size: 15 })} label="عدد النسخ">
-            <span>{item?.copies ?? 1}</span>
-          </DetailRow>
-          <DetailRow icon={Icons.color({ size: 15 })} label="اللون">
-            <span>{colorModeAr(item?.color_mode)}</span>
-          </DetailRow>
-          <DetailRow icon={Icons.pages({ size: 15 })} label="حجم الورق">
-            <span dir="ltr">{item?.paper_size || "A4"}</span>
-          </DetailRow>
-          <DetailRow icon={Icons.duplex({ size: 15 })} label="الطباعة على الوجهين">
-            <span>
-              {item?.sides && !["single", "simplex"].includes(item.sides)
-                ? "نعم"
-                : "لا"}
-              {item?.sides ? ` (${sidesAr(item.sides)})` : ""}
-            </span>
-          </DetailRow>
-          {finishing ? (
-            <DetailRow icon={Icons.staple({ size: 15 })} label="خدمة إضافية">
-              <span>{finishing}</span>
+          {order.notes ? (
+            <DetailRow icon={Icons.orders({ size: 15 })} label="ملاحظات">
+              <span className="text-end text-text-primary">{order.notes}</span>
             </DetailRow>
           ) : null}
         </div>
+
+        {items.length === 0 ? (
+          <p className="mt-3 text-meta text-text-muted">لا توجد ملفات في هذا الطلب</p>
+        ) : (
+          items.map((item, idx) => {
+            const finishing = Array.isArray(item.finishing)
+              ? item.finishing.join("، ")
+              : item.finishing || null;
+            return (
+              <div key={`${item.filename ?? "item"}-${idx}`} className="mt-3">
+                <p className="mb-1 text-section">
+                  {items.length > 1 ? `ملف ${idx + 1}` : "تفاصيل الطلب"}
+                </p>
+                <div className="divide-y divide-border-default/70">
+                  <DetailRow icon={Icons.file({ size: 15 })} label="اسم الملف">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span className="truncate" dir="ltr" title={item.filename}>
+                        {item.filename || "—"}
+                      </span>
+                      {item.file_url ? (
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          className="shrink-0 !px-2 !py-1 text-meta"
+                          disabled={busy}
+                          onClick={() => void openExternalUrl(item.file_url!)}
+                          title="فتح الملف"
+                        >
+                          فتح
+                        </Button>
+                      ) : null}
+                    </div>
+                  </DetailRow>
+                  <DetailRow icon={Icons.pages({ size: 15 })} label="عدد الصفحات">
+                    <span>
+                      {item.page_count != null ? `${item.page_count} صفحة` : "—"}
+                    </span>
+                  </DetailRow>
+                  <DetailRow icon={Icons.copies({ size: 15 })} label="عدد النسخ">
+                    <span>{item.copies ?? 1}</span>
+                  </DetailRow>
+                  <DetailRow icon={Icons.color({ size: 15 })} label="اللون">
+                    <span>{colorModeAr(item.color_mode)}</span>
+                  </DetailRow>
+                  <DetailRow icon={Icons.pages({ size: 15 })} label="حجم الورق">
+                    <span dir="ltr">{item.paper_size || "A4"}</span>
+                  </DetailRow>
+                  <DetailRow icon={Icons.duplex({ size: 15 })} label="الطباعة على الوجهين">
+                    <span>
+                      {item.sides && !["single", "simplex"].includes(item.sides)
+                        ? "نعم"
+                        : "لا"}
+                      {item.sides ? ` (${sidesAr(item.sides)})` : ""}
+                    </span>
+                  </DetailRow>
+                  <DetailRow icon={Icons.pages({ size: 15 })} label="الاتجاه">
+                    <span>{orientationAr(item.orientation)}</span>
+                  </DetailRow>
+                  {item.page_range && item.page_range !== "all" ? (
+                    <DetailRow icon={Icons.pages({ size: 15 })} label="نطاق الصفحات">
+                      <span dir="ltr">{item.page_range}</span>
+                    </DetailRow>
+                  ) : null}
+                  {finishing ? (
+                    <DetailRow icon={Icons.staple({ size: 15 })} label="خدمات إضافية">
+                      <span>{finishing}</span>
+                    </DetailRow>
+                  ) : null}
+                </div>
+              </div>
+            );
+          })
+        )}
 
         <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-border-default bg-bg-elevated px-3.5 py-2.5">
           <p className="text-body text-text-secondary">السعر الإجمالي</p>

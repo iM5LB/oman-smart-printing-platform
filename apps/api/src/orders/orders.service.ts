@@ -229,11 +229,12 @@ export class OrdersService {
   }
 
   private resolvePayAtPickupStatus(policy: string): OrderStatus {
+    // Pay-at-pickup never auto-prints. Auto-print is only for prepaid (online) orders.
     switch (policy) {
-      case 'auto_print':
-        return 'queued';
       case 'print_on_arrival':
         return 'submitted';
+      case 'auto_print':
+      case 'require_approval':
       default:
         return 'review_pending';
     }

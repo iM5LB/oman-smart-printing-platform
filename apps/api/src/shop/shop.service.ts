@@ -23,6 +23,7 @@ import { hashPassword } from '../common/password';
 import { PRISMA } from '../prisma/prisma.module';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrintingService } from '../printing/printing.service';
+import { StorageService } from '../storage/storage.service';
 
 const ACTIVE_STATUSES: OrderStatus[] = [
   'submitted',
@@ -44,7 +45,18 @@ export class ShopService {
     private readonly notifications: NotificationsService,
     @Inject(forwardRef(() => PrintingService))
     private readonly printing: PrintingService,
+    private readonly storage: StorageService,
   ) {}
+
+  private apiPublicBase(): string {
+    return (
+      process.env.PUBLIC_API_URL ??
+      process.env.API_PUBLIC_URL ??
+      process.env.API_URL ??
+      process.env.RENDER_EXTERNAL_URL ??
+      `http://localhost:${process.env.API_PORT ?? 4000}`
+    ).replace(/\/+$/, '');
+  }
 
   async getMe(storeId: string, deviceId: string) {
     const store = await this.db.store.findUnique({
@@ -130,7 +142,11 @@ export class ShopService {
     const orders = await this.db.order.findMany({
       where,
       include: {
-        items: true,
+        items: {
+          include: {
+            finishingServices: { include: { finishingService: true } },
+          },
+        },
         printJobs: { orderBy: { createdAt: 'desc' }, take: 3 },
       },
       orderBy: { createdAt: 'desc' },
@@ -252,10 +268,29 @@ export class ShopService {
   }
 
   async getPricing(storeId: string) {
-    const [rules, finishing] = await Promise.all([
-      this.db.pricingRule.findMany({ where: { storeId }, orderBy: { paperSize: 'asc' } }),
-      this.db.finishingService.findMany({ where: { storeId }, orderBy: { sortOrder: 'asc' } }),
-    ]);
+    let finishing = await this.db.finishingService.findMany({
+      where: { storeId },
+      orderBy: { sortOrder: 'asc' },
+    });
+
+    if (finishing.length === 0) {
+      await this.db.finishingService.createMany({
+        data: [
+          { storeId, nameAr: 'تدبيس', priceBaisa: 100, sortOrder: 1, isActive: true },
+          { storeId, nameAr: 'تجليد', priceBaisa: 500, sortOrder: 2, isActive: true },
+          { storeId, nameAr: 'تغليف حراري', priceBaisa: 300, sortOrder: 3, isActive: true },
+        ],
+      });
+      finishing = await this.db.finishingService.findMany({
+        where: { storeId },
+        orderBy: { sortOrder: 'asc' },
+      });
+    }
+
+    const rules = await this.db.pricingRule.findMany({
+      where: { storeId },
+      orderBy: { paperSize: 'asc' },
+    });
 
     return {
       rules: rules.map((r) => ({
@@ -383,7 +418,7 @@ export class ShopService {
       },
     });
 
-    await this.printing.dispatchOrder(orderId);
+    // Do not auto-print on in-store payment — only prepaid (online) orders auto-print.
     return { success: true, status: 'paid' };
   }
 
@@ -453,6 +488,7 @@ export class ShopService {
     paymentMethod: string | null;
     customerName: string | null;
     customerPhone: string | null;
+    customerNotes: string | null;
     totalBaisa: number;
     createdAt: Date;
     items: Array<{
@@ -462,9 +498,17 @@ export class ShopService {
       colorMode: ColorMode | string;
       paperSize: PaperSize | string;
       sides: string;
+      orientation?: string | null;
+      pageRange?: string | null;
+      originalFileKey?: string | null;
+      mimeType?: string | null;
+      finishingServices?: Array<{
+        finishingService?: { nameAr: string } | null;
+      }>;
     }>;
     printJobs: Array<{ id: string; status: string; failureReason: string | null }>;
   }) {
+    const apiBase = this.apiPublicBase();
     return {
       id: o.id,
       order_number: o.displayNumber,
@@ -473,18 +517,32 @@ export class ShopService {
       payment_method: o.paymentMethod,
       customer_name: o.customerName,
       customer_phone: o.customerPhone,
+      notes: o.customerNotes,
       total_baisa: o.totalBaisa,
       total_display: formatOMR(o.totalBaisa),
       item_count: o.items.length,
       created_at: o.createdAt.toISOString(),
-      items: o.items.map((i) => ({
-        filename: i.originalFilename,
-        page_count: i.pageCount,
-        copies: i.copies,
-        color_mode: i.colorMode,
-        paper_size: i.paperSize,
-        sides: i.sides,
-      })),
+      items: o.items.map((i) => {
+        const finishingNames = (i.finishingServices ?? [])
+          .map((fs) => fs.finishingService?.nameAr)
+          .filter((n): n is string => Boolean(n));
+        const fileKey = i.originalFileKey ?? null;
+        return {
+          filename: i.originalFilename,
+          page_count: i.pageCount,
+          copies: i.copies,
+          color_mode: i.colorMode,
+          paper_size: i.paperSize,
+          sides: i.sides,
+          orientation: i.orientation ?? 'auto',
+          page_range: i.pageRange ?? 'all',
+          mime_type: i.mimeType ?? null,
+          finishing: finishingNames,
+          file_url: fileKey
+            ? this.storage.getSignedUrl(fileKey, apiBase, 3600)
+            : null,
+        };
+      }),
       print_jobs: o.printJobs.map((j) => ({
         id: j.id,
         status: j.status,

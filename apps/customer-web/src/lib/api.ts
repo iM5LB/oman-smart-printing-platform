@@ -74,9 +74,10 @@ export interface OrderItemInput {
   page_count: number;
   mime_type?: string;
   file_size_bytes?: number;
-  color_mode: 'bw' | 'color';
-  paper_size: 'A4' | 'A3';
-  sides: 'single' | 'duplex_long';
+  color_mode: 'bw' | 'color' | 'grayscale';
+  paper_size: 'A4' | 'A3' | 'A5';
+  sides: 'single' | 'duplex_long' | 'duplex_short';
+  orientation?: 'auto' | 'portrait' | 'landscape';
   copies: number;
   page_range?: string;
   finishing_service_ids?: string[];

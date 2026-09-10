@@ -257,6 +257,7 @@ export function DashboardPage() {
                       active={sortKey === "order"}
                       dir={sortDir}
                       onClick={() => onSort("order")}
+                      className="!w-[9rem] !min-w-[9rem]"
                     />
                     <SortHeader
                       label="اسم العميل"
@@ -303,7 +304,7 @@ export function DashboardPage() {
                           active ? "bg-primary/10" : "hover:bg-bg-hover/50"
                         }`}
                       >
-                        <td className="whitespace-nowrap px-3 py-2.5 font-medium" dir="ltr">
+                        <td className="w-[9rem] min-w-[9rem] whitespace-nowrap px-3 py-2.5 font-medium tabular-nums" dir="ltr">
                           {orderLabel(o)}
                         </td>
                         <td className="max-w-[9rem] truncate px-3 py-2.5">

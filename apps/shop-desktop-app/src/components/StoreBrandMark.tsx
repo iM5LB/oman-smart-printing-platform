@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { formatCleanUrl, resolveStoreLogoUrl } from "../lib/api";
+import { openExternalUrl } from "../lib/openExternal";
 
 export function storeInitials(name: string): string {
   const parts = name
@@ -26,6 +27,7 @@ export function StoreBrandMark({
   logoUrl?: string | null;
   /** Public shop URL — shown under the store name (never alone). */
   shopUrl?: string | null;
+  /** Optional override (e.g. open QR). Default: open URL in system browser. */
   onShopUrlClick?: () => void;
   size?: "sm" | "md";
   className?: string;
@@ -42,6 +44,14 @@ export function StoreBrandMark({
   }, [resolved]);
 
   const showLogo = Boolean(resolved) && !broken;
+
+  const handleUrlClick = () => {
+    if (onShopUrlClick) {
+      onShopUrlClick();
+      return;
+    }
+    if (shopUrl) void openExternalUrl(shopUrl);
+  };
 
   return (
     <div className={`flex min-w-0 items-center gap-3 ${className}`}>
@@ -63,27 +73,15 @@ export function StoreBrandMark({
       <div className="min-w-0">
         <p className={`truncate ${title} leading-tight`}>{display}</p>
         {cleanUrl ? (
-          onShopUrlClick ? (
-            <button
-              type="button"
-              onClick={onShopUrlClick}
-              className="mt-0.5 block max-w-full truncate text-start text-caption text-info underline-offset-2 hover:underline"
-              dir="ltr"
-              title="عرض رمز QR للمسح"
-            >
-              {cleanUrl}
-            </button>
-          ) : (
-            <a
-              href={shopUrl!}
-              target="_blank"
-              rel="noreferrer"
-              className="mt-0.5 block max-w-full truncate text-caption text-info underline-offset-2 hover:underline"
-              dir="ltr"
-            >
-              {cleanUrl}
-            </a>
-          )
+          <button
+            type="button"
+            onClick={handleUrlClick}
+            className="mt-0.5 block max-w-full truncate text-start text-caption text-info underline-offset-2 hover:underline"
+            dir="ltr"
+            title={shopUrl ?? cleanUrl}
+          >
+            {cleanUrl}
+          </button>
         ) : null}
       </div>
     </div>

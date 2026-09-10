@@ -82,8 +82,8 @@ export class StorageService {
     }
   }
 
-  getSignedUrl(fileKey: string, apiBaseUrl: string): string {
-    const token = this.createSignedToken(fileKey);
+  getSignedUrl(fileKey: string, apiBaseUrl: string, ttlSeconds?: number): string {
+    const token = this.createSignedToken(fileKey, ttlSeconds);
     return `${apiBaseUrl}/api/v1/files/download?token=${token}`;
   }
 }

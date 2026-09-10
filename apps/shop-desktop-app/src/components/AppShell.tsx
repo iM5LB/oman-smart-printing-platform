@@ -1,4 +1,4 @@
-import { NavLink, useNavigate } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useAuth } from "../lib/auth";
 import { getCustomerShopUrl, shopApi } from "../lib/api";
@@ -10,7 +10,6 @@ import {
 } from "../lib/updates";
 import { Icons } from "./icons";
 import { NotificationBell } from "./NotificationBell";
-import { ShopUrlQrDialog } from "./ShopUrlQrDialog";
 import { StoreBrandMark, storeInitials } from "./StoreBrandMark";
 import { useToast } from "./Toast";
 import { Button } from "./ui";
@@ -24,7 +23,7 @@ const nav = [
   { to: "/customers", label: "العملاء", icon: Icons.customers },
   { to: "/pricing", label: "الأسعار", icon: Icons.pricing },
   { to: "/reports", label: "التقارير", icon: Icons.reports },
-  { to: "/settings", label: "المعلومات", icon: Icons.settings },
+  { to: "/settings", label: "الإعدادات", icon: Icons.settings },
 ];
 
 function formatOrderLabel(raw: string) {
@@ -32,9 +31,11 @@ function formatOrderLabel(raw: string) {
 }
 
 export function AppShell({ children }: { children: ReactNode }) {
-  const { me, logout, token } = useAuth();
+  const { me, token } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const { push: pushToast } = useToast();
+  const accountActive = location.pathname === "/account";
   const [online, setOnline] = useState(true);
   const knownOrderIds = useRef<Set<string> | null>(null);
   const [updateVersion, setUpdateVersion] = useState<string | null>(null);
@@ -42,7 +43,6 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [updateProgress, setUpdateProgress] = useState<InstallProgress | null>(
     null,
   );
-  const [shopQrOpen, setShopQrOpen] = useState(false);
   const updatePrompted = useRef(false);
   const shopUrl = getCustomerShopUrl(me?.store);
 
@@ -172,9 +172,6 @@ export function AppShell({ children }: { children: ReactNode }) {
                     name={me.store.name}
                     logoUrl={me.store.logo_url}
                     shopUrl={shopUrl}
-                    onShopUrlClick={
-                      shopUrl ? () => setShopQrOpen(true) : undefined
-                    }
                     size="sm"
                     className="min-w-0"
                   />
@@ -245,8 +242,14 @@ export function AppShell({ children }: { children: ReactNode }) {
             </div>
             <button
               type="button"
-              onClick={logout}
-              className="flex w-full items-center gap-3 rounded-xl border border-border-default bg-bg-elevated px-3 py-2.5 text-start transition-colors hover:bg-bg-hover"
+              onClick={() => navigate("/account")}
+              className={`flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-start transition-colors ${
+                accountActive
+                  ? "border-primary/40 bg-primary/15"
+                  : "border-border-default bg-bg-elevated hover:bg-bg-hover"
+              }`}
+              aria-label="معلومات البرنامج والموقع المتصل"
+              aria-current={accountActive ? "page" : undefined}
             >
               <div
                 className="flex size-9 items-center justify-center rounded-full bg-primary/20 text-meta font-semibold text-primary"
@@ -273,15 +276,6 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         </main>
       </div>
-
-      {shopUrl ? (
-        <ShopUrlQrDialog
-          open={shopQrOpen}
-          onClose={() => setShopQrOpen(false)}
-          url={shopUrl}
-          storeName={me?.store.name}
-        />
-      ) : null}
 
       {updateVersion ? (
         <div

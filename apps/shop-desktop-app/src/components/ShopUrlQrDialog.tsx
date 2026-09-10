@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import QRCode from "qrcode";
 import { formatCleanUrl } from "../lib/api";
+import { openExternalUrl } from "../lib/openExternal";
 import { Button } from "./ui";
 
 export function ShopUrlQrDialog({
@@ -66,12 +67,15 @@ export function ShopUrlQrDialog({
         <h2 id="shop-qr-title" className="text-title">
           {storeName?.trim() || "رابط العملاء"}
         </h2>
-        <p
-          className="mt-1 break-all text-meta text-info"
+        <button
+          type="button"
+          onClick={() => void openExternalUrl(url)}
+          className="mt-1 max-w-full break-all text-start text-meta text-info underline-offset-2 hover:underline"
           dir="ltr"
+          title="فتح في المتصفح"
         >
           {formatCleanUrl(url)}
-        </p>
+        </button>
         <div className="mt-4 flex justify-center rounded-xl bg-white p-4">
           {dataUrl ? (
             <img src={dataUrl} alt="QR code" className="size-[240px]" />
@@ -84,7 +88,14 @@ export function ShopUrlQrDialog({
         <p className="mt-3 text-center text-caption text-text-muted">
           امسح الرمز لفتح صفحة المكتبة
         </p>
-        <div className="mt-4 flex justify-end">
+        <div className="mt-4 flex flex-wrap justify-end gap-2">
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => void openExternalUrl(url)}
+          >
+            فتح في المتصفح
+          </Button>
           <Button type="button" variant="secondary" onClick={onClose}>
             إغلاق
           </Button>

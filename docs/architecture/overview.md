@@ -45,22 +45,21 @@ A production-ready smart printing platform for Omani print shops, libraries, and
 
 ```
 apps/
-  customer-web/       Next.js — Arabic RTL customer website
-  shop-desktop/       .NET WPF/WinUI — shop employee application
+  customer-web/       Next.js — customer site + library onboarding/admin
+  shop-desktop-app/   Tauri — shop desktop (React + Rust)
+  print-worker/       .NET — Windows printer bridge
+  shop-desktop/       Legacy WPF prototype (transitional)
   api/                NestJS — REST + WebSocket backend
 
 packages/
   database/           Prisma schema + migrations
   shared/             Business logic, validators, money utils
   types/              Shared TypeScript types/DTOs
-  ui/                 Shared React components (RTL)
-
-services/
-  document-processing/  PDF conversion, preview generation
 
 docs/
   architecture/       System design documents
   adr/                Architecture Decision Records
+  desktop/            Desktop app architecture & design
 ```
 
 ---

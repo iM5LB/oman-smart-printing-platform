@@ -19,8 +19,8 @@ export function CountPill({
 }
 
 /**
- * RTL header: title on start/right, optional filters filling the middle column,
- * actions (e.g. CountPill) on end/left.
+ * RTL header: title on start/right, actions on end/left.
+ * Filters sit on a full-width second row so titles/counts are never cramped.
  */
 export function PageHeading({
   icon,
@@ -32,7 +32,7 @@ export function PageHeading({
   icon: ReactNode;
   title: string;
   description?: string;
-  /** Search / status chips — full-width middle column between title and actions. */
+  /** Search / status chips — full-width row under the title. */
   filters?: ReactNode;
   actions?: ReactNode;
 }) {
@@ -49,29 +49,18 @@ export function PageHeading({
   );
 
   const actionsBlock = actions ? (
-    <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
-      {actions}
-    </div>
+    <div className="flex shrink-0 items-center gap-2">{actions}</div>
   ) : null;
 
-  if (!filters) {
-    return (
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
+  return (
+    <div className="flex shrink-0 flex-col gap-2.5">
+      <div className="flex items-start justify-between gap-4">
         {titleBlock}
         {actionsBlock}
       </div>
-    );
-  }
-
-  return (
-    <div className="grid shrink-0 grid-cols-1 items-center gap-3 sm:grid-cols-[auto_minmax(0,1fr)_auto]">
-      <div className="min-w-0 sm:justify-self-start">{titleBlock}</div>
-      <div className="flex w-full min-w-0 max-w-full items-center justify-center sm:justify-self-stretch">
-        {filters}
-      </div>
-      <div className="min-w-0 sm:justify-self-end">
-        {actionsBlock}
-      </div>
+      {filters ? (
+        <div className="flex w-full min-w-0 items-center">{filters}</div>
+      ) : null}
     </div>
   );
 }

@@ -12,6 +12,7 @@ import { CustomersPage } from "./pages/CustomersPage";
 import { PricingPage } from "./pages/PricingPage";
 import { ReportsPage } from "./pages/ReportsPage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { LibraryInfoPage } from "./pages/LibraryInfoPage";
 
 function Protected({ children }: { children: React.ReactNode }) {
   const { token } = useAuth();
@@ -39,6 +40,7 @@ export default function App() {
                 <Route path="/reports" element={<ReportsPage />} />
                 <Route path="/pickup" element={<PickupPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
+                <Route path="/account" element={<LibraryInfoPage />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
             </AppShell>

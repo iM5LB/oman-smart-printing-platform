@@ -125,13 +125,13 @@ export function OrdersPage() {
         title="الطلبات"
         description="إدارة الطلبات النشطة وفرزها حسب الحالة أو الوقت"
         filters={
-          <div className="flex w-full items-center gap-1.5">
+          <div className="flex w-full gap-1.5 overflow-x-auto pb-0.5">
             {FILTERS.map((f) => (
               <button
                 key={f.id}
                 type="button"
                 onClick={() => setFilter(f.id)}
-                className={`min-w-0 flex-1 rounded-lg px-2 py-1.5 text-center text-body transition-colors ${
+                className={`shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-body transition-colors ${
                   filter === f.id
                     ? "bg-primary text-white"
                     : "bg-bg-elevated text-text-secondary hover:bg-bg-hover"
@@ -165,7 +165,7 @@ export function OrdersPage() {
                     active={sortKey === "order"}
                     dir={sortDir}
                     onClick={() => onSort("order")}
-                    className="!px-3"
+                    className="!w-[9rem] !min-w-[9rem] !px-3"
                   />
                   <SortHeader
                     label="العميل"
@@ -203,7 +203,10 @@ export function OrdersPage() {
                     key={o.id}
                     className="border-b border-border-default/60 hover:bg-bg-hover/50"
                   >
-                    <td className="px-3 py-2.5 font-medium" dir="ltr">
+                    <td
+                      className="w-[9rem] min-w-[9rem] whitespace-nowrap px-3 py-2.5 font-medium tabular-nums"
+                      dir="ltr"
+                    >
                       {orderLabel(o)}
                     </td>
                     <td className="px-3 py-2.5">
