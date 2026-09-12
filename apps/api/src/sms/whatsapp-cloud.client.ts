@@ -31,8 +31,9 @@ export class WhatsAppCloudClient {
   async sendAuthenticationOtp(phone: string, code: string): Promise<string | undefined> {
     const templateName = process.env.WHATSAPP_OTP_TEMPLATE_NAME?.trim();
     if (!templateName) {
-      throw new BadRequestException(
-        'تعذر إرسال واتساب: اسم قالب رمز التحقق غير معيّن (WHATSAPP_OTP_TEMPLATE_NAME)',
+      console.error('[whatsapp] WHATSAPP_OTP_TEMPLATE_NAME is not set');
+      throw new ServiceUnavailableException(
+        'تعذر إرسال رمز التحقق عبر واتساب حالياً. حاول لاحقاً.',
       );
     }
 
@@ -154,8 +155,9 @@ export class WhatsAppCloudClient {
     const token = process.env.WHATSAPP_TOKEN?.trim();
     const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID?.trim();
     if (!token || !phoneNumberId) {
-      throw new BadRequestException(
-        'تعذر إرسال واتساب: الإعدادات غير مكتملة (WHATSAPP_TOKEN أو WHATSAPP_PHONE_NUMBER_ID)',
+      console.error('[whatsapp] Cloud API credentials are incomplete');
+      throw new ServiceUnavailableException(
+        'تعذر إرسال رمز التحقق عبر واتساب حالياً. حاول لاحقاً.',
       );
     }
     return { token, phoneNumberId };
@@ -184,16 +186,16 @@ function arabicGraphError(status: number, error?: GraphError): string {
   const msg = `${error?.error_user_msg ?? ''} ${error?.message ?? ''}`.toLowerCase();
 
   if (code === 190 || status === 401) {
-    return 'تعذر إرسال واتساب: رمز الوصول غير صالح أو منتهٍ. راجع إعدادات المنصة';
+    return 'تعذر إرسال رمز التحقق عبر واتساب. حاول لاحقاً أو تواصل مع الدعم.';
   }
   if (code === 132001 || code === 132000 || msg.includes('template')) {
-    return 'تعذر إرسال واتساب: قالب الرسالة غير موجود أو غير موافق عليه أو لا يطابق المتغيرات';
+    return 'تعذر إرسال رمز التحقق عبر واتساب. حاول لاحقاً أو تواصل مع الدعم.';
   }
   if (code === 131026 || code === 131047 || code === 131048) {
-    return 'تعذر إرسال واتساب إلى هذا الرقم. تأكد أن واتساب مفعّل على الهاتف';
+    return 'تعذر إرسال واتساب إلى هذا الرقم. تأكد أن واتساب مفعّل على الهاتف.';
   }
   if (code === 100 || status === 400) {
-    return 'تعذر إرسال واتساب: بيانات القالب أو الرقم غير صحيحة';
+    return 'تعذر إرسال رمز التحقق. تحقق من رقم الهاتف وحاول مجدداً.';
   }
-  return 'تعذر إرسال رمز التحقق عبر واتساب. حاول لاحقاً';
+  return 'تعذر إرسال رمز التحقق عبر واتساب. حاول لاحقاً.';
 }

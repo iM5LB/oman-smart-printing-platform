@@ -250,7 +250,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                   ? "border-primary/40 bg-primary/15"
                   : "border-border-default bg-bg-elevated hover:bg-bg-hover"
               }`}
-              aria-label="معلومات البرنامج والموقع المتصل"
+              aria-label="معلومات المكتبة"
               aria-current={accountActive ? "page" : undefined}
             >
               <div

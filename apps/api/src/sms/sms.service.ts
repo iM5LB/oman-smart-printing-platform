@@ -73,8 +73,8 @@ export class SmsService implements OnModuleInit {
         : 'تم إرسال رمز التحقق عبر رسالة نصية';
     }
     return purpose === 'device_pairing'
-      ? 'تم إنشاء رمز التأكيد (وضع التطوير — راجع سجل الخادم)'
-      : 'تم إنشاء رمز التحقق (وضع التطوير — راجع سجل الخادم)';
+      ? 'تم إنشاء رمز التأكيد (وضع التطوير)'
+      : 'تم إنشاء رمز التحقق (وضع التطوير)';
   }
 
   async sendOtp(phone: string, code: string, purpose: SmsOtpPurpose): Promise<void> {

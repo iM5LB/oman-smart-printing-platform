@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 import { shopApi } from "../lib/api";
+import { toUserMessage } from "../lib/errors";
 import { Button, Input, Panel } from "../components/ui";
 import { TibaaBrandMark } from "../components/TibaaBrandMark";
 
@@ -23,15 +24,21 @@ export function LoginPage() {
 
   if (token) return <Navigate to="/" replace />;
 
+  const showError = localError || error;
+
   const onRequestOtp = async (e: FormEvent) => {
     e.preventDefault();
     setLocalError(null);
     setBusy(true);
     try {
       const slug = storeSlug.trim().toLowerCase();
-      if (!slug) throw new Error("أدخل معرّف المكتبة");
+      if (!slug) {
+        setLocalError("أدخل معرّف المكتبة");
+        return;
+      }
       if (devicePassword.trim().length < 6) {
-        throw new Error("كلمة مرور الجهاز يجب أن تكون 6 أحرف على الأقل");
+        setLocalError("كلمة مرور الجهاز يجب أن تكون 6 أحرف على الأقل");
+        return;
       }
       const res = await shopApi.pairStart({
         store_slug: slug,
@@ -44,7 +51,7 @@ export function LoginPage() {
       if (res.dev_code) setOtp(res.dev_code);
       setStep("otp");
     } catch (err) {
-      setLocalError(err instanceof Error ? err.message : "فشل إرسال الرمز");
+      setLocalError(toUserMessage(err, "تعذر إرسال رمز التأكيد. حاول مجدداً."));
     } finally {
       setBusy(false);
     }
@@ -57,6 +64,10 @@ export function LoginPage() {
       setLocalError("أعد طلب الرمز أولاً");
       return;
     }
+    if (otp.trim().length < 4) {
+      setLocalError("أدخل رمز التأكيد كاملاً");
+      return;
+    }
     setBusy(true);
     try {
       const res = await shopApi.pairConfirm({
@@ -64,10 +75,9 @@ export function LoginPage() {
         code: otp.trim(),
       });
       await login(res.device_token);
-      // Replace history so WebView/OS "Back" does not return to /login and bounce in again.
       navigate("/", { replace: true });
     } catch (err) {
-      setLocalError(err instanceof Error ? err.message : "فشل الدخول");
+      setLocalError(toUserMessage(err, "تعذر تسجيل الدخول. تحقق من الرمز وحاول مجدداً."));
     } finally {
       setBusy(false);
     }
@@ -94,14 +104,14 @@ export function LoginPage() {
         <TibaaBrandMark size="lg" stacked showTagline />
         <p className="mt-4 text-body text-text-secondary">
           {step === "credentials" ? (
-            "استخدم معرّف المكتبة وكلمة مرور الجهاز كما ضبطتها في الموقع. سيُرسل رمز تأكيد إلى رقم هاتف العلامة التجارية."
+            "أدخل معرّف المكتبة وكلمة مرور الجهاز. سيُرسل رمز تأكيد إلى رقم المكتبة المسجّل."
           ) : (
             <>
               أدخل الرمز المرسل إلى{" "}
               <span className="unicode-bidi-isolate font-medium" dir="ltr">
                 {phoneHint ?? "رقم المكتبة"}
-              </span>{" "}
-              لإكمال الربط.
+              </span>
+              .
             </>
           )}
         </p>
@@ -109,12 +119,12 @@ export function LoginPage() {
         {step === "credentials" ? (
           <form className="mt-6 space-y-4" onSubmit={onRequestOtp}>
             <label className="block space-y-1.5">
-              <span className="text-meta text-text-muted">معرّف المكتبة (slug)</span>
+              <span className="text-meta text-text-muted">معرّف المكتبة</span>
               <Input
                 dir="ltr"
                 value={storeSlug}
                 onChange={(e) => setStoreSlug(e.target.value)}
-                placeholder="al-noor"
+                placeholder="مثال: al-noor"
                 autoFocus
                 autoComplete="organization"
                 required
@@ -127,7 +137,7 @@ export function LoginPage() {
                 type="password"
                 value={devicePassword}
                 onChange={(e) => setDevicePassword(e.target.value)}
-                placeholder="نفس كلمة المرور من إعداد الموقع"
+                placeholder="من إعداد المكتبة على الموقع"
                 autoComplete="current-password"
                 required
                 minLength={6}
@@ -141,17 +151,15 @@ export function LoginPage() {
                 placeholder="جهاز الكاونتر"
               />
             </label>
-            {(localError || error) && (
-              <p className="text-meta text-danger">{localError || error}</p>
-            )}
+            {showError ? <p className="text-meta text-danger">{showError}</p> : null}
             <Button type="submit" className="w-full" disabled={busy || loading}>
-              {busy ? "جاري الإرسال..." : "إرسال رمز التأكيد"}
+              {busy ? "جاري الإرسال…" : "إرسال رمز التأكيد"}
             </Button>
           </form>
         ) : (
           <form className="mt-6 space-y-4" onSubmit={onConfirmOtp}>
             <label className="block space-y-1.5">
-              <span className="text-meta text-text-muted">رمز التأكيد (OTP)</span>
+              <span className="text-meta text-text-muted">رمز التأكيد</span>
               <Input
                 dir="ltr"
                 value={otp}
@@ -169,11 +177,9 @@ export function LoginPage() {
                 وضع تجريبي — الرمز: <span dir="ltr">{devCode}</span>
               </p>
             ) : null}
-            {(localError || error) && (
-              <p className="text-meta text-danger">{localError || error}</p>
-            )}
+            {showError ? <p className="text-meta text-danger">{showError}</p> : null}
             <Button type="submit" className="w-full" disabled={busy || loading}>
-              {busy || loading ? "جاري الدخول..." : "تأكيد ودخول"}
+              {busy || loading ? "جاري الدخول…" : "تأكيد ودخول"}
             </Button>
             <Button
               type="button"

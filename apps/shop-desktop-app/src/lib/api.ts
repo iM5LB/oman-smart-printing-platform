@@ -1,3 +1,5 @@
+import { parseApiErrorMessage, toUserMessage } from "./errors";
+
 /** Production API — release builds always use this (no trailing slash). */
 export const PRODUCTION_API_BASE = "https://omsp-api.onrender.com";
 
@@ -260,20 +262,13 @@ async function httpFetch(
 }
 
 function mapFetchError(err: unknown): Error {
-  const base = getApiBase();
-  if (err instanceof TypeError || (err instanceof Error && /fetch|network|cors|failed/i.test(err.message))) {
-    return new Error(
-      `تعذر الاتصال بالخادم (${base}). تحقق من الإنترنت أو أعد تشغيل التطبيق.`,
-    );
-  }
-  if (err instanceof Error) return err;
-  return new Error(`فشل الاتصال (${base})`);
+  return new Error(
+    toUserMessage(err, "تعذر الاتصال بالخادم. تحقق من الإنترنت وحاول مجدداً."),
+  );
 }
 
 async function parseErrorMessage(res: Response): Promise<string> {
-  const err = await res.json().catch(() => ({ message: `HTTP ${res.status}` }));
-  const msg = Array.isArray(err.message) ? err.message[0] : err.message;
-  return msg ?? `HTTP ${res.status}`;
+  return parseApiErrorMessage(res);
 }
 
 async function request<T>(
@@ -418,54 +413,4 @@ export const shopApi = {
       method: "POST",
       body: JSON.stringify({ method }),
     }),
-};
-
-export type OtpBotStatus = {
-  provider: string;
-  status: "disconnected" | "qr" | "connecting" | "ready" | string;
-  detail: string;
-  connected_user: string | null;
-  has_qr: boolean;
-  session_path?: string;
-  warning?: string;
-};
-
-async function otpBotFetch<T>(
-  path: string,
-  setupPassword: string,
-  opts?: { method?: string; refresh?: boolean },
-): Promise<T> {
-  const qs = new URLSearchParams();
-  if (opts?.refresh) qs.set("refresh", "1");
-  const q = qs.toString();
-  const url = `${apiUrl()}/otp-bot${path}${q ? `?${q}` : ""}`;
-  let res: Response;
-  try {
-    res = await httpFetch(url, {
-      method: opts?.method ?? "GET",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Setup-Password": setupPassword,
-      },
-    });
-  } catch (err) {
-    throw mapFetchError(err);
-  }
-  if (!res.ok) throw new Error(await parseErrorMessage(res));
-  if (res.status === 204) return undefined as T;
-  return (await res.json()) as T;
-}
-
-/** WhatsApp QR bot — protected by LIBRARY_SETUP_PASSWORD. */
-export const otpBotApi = {
-  status: (setupPassword: string) =>
-    otpBotFetch<OtpBotStatus>("/status", setupPassword),
-  qr: (setupPassword: string, refresh = false) =>
-    otpBotFetch<{
-      status: string;
-      qr_data_url: string | null;
-      detail: string;
-    }>("/qr", setupPassword, { refresh }),
-  logout: (setupPassword: string) =>
-    otpBotFetch<{ ok: boolean }>("/logout", setupPassword, { method: "POST" }),
 };

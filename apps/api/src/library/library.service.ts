@@ -549,7 +549,9 @@ export class LibraryService {
     });
     if (!store) throw new NotFoundException('المكتبة غير موجودة');
     if (!store.devicePasswordHash || !store.deviceConfirmPhone) {
-      throw new BadRequestException('المكتبة لم تُكمل إعداد أمان الجهاز من لوحة الويب');
+      throw new BadRequestException(
+        'المكتبة لم تُكمل إعداد أمان الجهاز بعد. أكمل الإعداد من الموقع ثم حاول مجدداً.',
+      );
     }
     if (!verifyPassword(devicePassword, store.devicePasswordHash)) {
       throw new UnauthorizedException('كلمة مرور الجهاز غير صحيحة');

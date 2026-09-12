@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { shopApi, type ShopMe } from "./api";
+import { toUserMessage } from "./errors";
 
 const TOKEN_KEY = "omsp.deviceToken";
 
@@ -43,7 +44,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (rawToken: string) => {
     const trimmed = rawToken.trim();
-    if (!trimmed) throw new Error("أدخل رمز الجهاز");
+    if (!trimmed) throw new Error("تعذر إكمال الدخول");
 
     setLoading(true);
     setError(null);
@@ -56,9 +57,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.removeItem(TOKEN_KEY);
       setToken(null);
       setMe(null);
-      const message = e instanceof Error ? e.message : "فشل الاتصال";
+      const message = toUserMessage(e, "تعذر تسجيل الدخول. حاول مجدداً.");
       setError(message);
-      throw e;
+      throw new Error(message);
     } finally {
       setLoading(false);
     }

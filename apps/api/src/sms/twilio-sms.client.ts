@@ -21,8 +21,9 @@ export class TwilioSmsClient {
     const from = process.env.TWILIO_FROM_NUMBER?.trim();
 
     if (!accountSid || !authToken || !from) {
+      console.error('[twilio] SMS credentials are incomplete');
       throw new ServiceUnavailableException(
-        'تعذر إرسال الرسالة: إعدادات Twilio غير مكتملة (TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN / TWILIO_FROM_NUMBER)',
+        'تعذر إرسال رمز التحقق حالياً. حاول لاحقاً.',
       );
     }
 
@@ -53,9 +54,14 @@ export class TwilioSmsClient {
     };
 
     if (!res.ok) {
-      const detail = data.error_message || data.message || `HTTP ${res.status}`;
-      console.error('[twilio] send failed:', detail, data.code);
-      throw new ServiceUnavailableException(`تعذر إرسال الرسالة النصية: ${detail}`);
+      console.error('[twilio] send failed:', {
+        status: res.status,
+        code: data.code,
+        message: data.error_message || data.message,
+      });
+      throw new ServiceUnavailableException(
+        'تعذر إرسال الرسالة النصية. تحقق من الرقم وحاول مجدداً.',
+      );
     }
 
     return data.sid;

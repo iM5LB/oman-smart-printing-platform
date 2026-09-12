@@ -34,7 +34,7 @@ export class WhatsAppBaileysClient implements OnModuleInit, OnModuleDestroy {
   private latestQr: string | null = null;
   private latestQrDataUrl: string | null = null;
   private status: 'disconnected' | 'qr' | 'connecting' | 'ready' = 'disconnected';
-  private statusDetail = 'not started';
+  private statusDetail = 'لم يبدأ بعد';
   private connectedUser: string | null = null;
 
   onModuleInit(): void {
@@ -62,9 +62,8 @@ export class WhatsAppBaileysClient implements OnModuleInit, OnModuleDestroy {
       detail: this.statusDetail,
       connected_user: this.connectedUser,
       has_qr: Boolean(this.latestQr),
-      session_path: this.sessionPath(),
       warning:
-        'Unofficial WhatsApp Web bot. Account ban risk. Use a spare number. Persist WHATSAPP_SESSION_PATH across deploys.',
+        'يفضّل استخدام رقم واتساب احتياطي. أعد الربط من الإعدادات إذا انقطع الاتصال.',
     };
   }
 
@@ -78,7 +77,7 @@ export class WhatsAppBaileysClient implements OnModuleInit, OnModuleDestroy {
       return {
         status: this.status,
         qr_data_url: null,
-        detail: 'already linked',
+        detail: 'واتساب مرتبط وجاهز',
       };
     }
     if (forceRefresh && this.status !== 'qr') {
@@ -105,7 +104,7 @@ export class WhatsAppBaileysClient implements OnModuleInit, OnModuleDestroy {
     this.latestQr = null;
     this.latestQrDataUrl = null;
     this.status = 'disconnected';
-    this.statusDetail = 'logged out — call QR link again';
+    this.statusDetail = 'تم قطع الربط — امسح رمز QR مجدداً';
     this.connectedUser = null;
     await this.ensureStarted();
   }
@@ -118,13 +117,13 @@ export class WhatsAppBaileysClient implements OnModuleInit, OnModuleDestroy {
     await this.ensureStarted();
     if (!this.sock || this.status !== 'ready') {
       throw new ServiceUnavailableException(
-        'واتساب غير مرتبط. افتح صفحة ربط QR وامسح الرمز من هاتفك.',
+        'تعذر إرسال رمز التأكيد عبر واتساب حالياً. حاول بعد قليل أو تواصل مع الدعم.',
       );
     }
 
     const normalized = normalizePhone(toPhone);
     if (!normalized) {
-      throw new ServiceUnavailableException('رقم الهاتف غير صالح');
+      throw new ServiceUnavailableException('رقم الهاتف غير صالح لإرسال واتساب');
     }
     const digits = formatPhoneForWhatsApp(normalized);
     const jid = `${digits}@s.whatsapp.net`;
@@ -133,9 +132,10 @@ export class WhatsAppBaileysClient implements OnModuleInit, OnModuleDestroy {
       const result = await this.sock.sendMessage(jid, { text });
       return result?.key?.id ?? undefined;
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error('[baileys] send failed:', msg);
-      throw new ServiceUnavailableException(`تعذر إرسال واتساب: ${msg}`);
+      console.error('[baileys] send failed:', err);
+      throw new ServiceUnavailableException(
+        'تعذر إرسال رسالة واتساب. حاول مجدداً بعد قليل.',
+      );
     }
   }
 
@@ -192,7 +192,7 @@ export class WhatsAppBaileysClient implements OnModuleInit, OnModuleDestroy {
     }
 
     this.status = 'connecting';
-    this.statusDetail = 'starting WhatsApp Web session';
+    this.statusDetail = 'جاري الاتصال بواتساب…';
 
     const sock = makeWASocket({
       auth: state,
@@ -218,7 +218,7 @@ export class WhatsAppBaileysClient implements OnModuleInit, OnModuleDestroy {
       if (update.qr) {
         this.latestQr = update.qr;
         this.status = 'qr';
-        this.statusDetail = 'scan QR with WhatsApp → Linked devices';
+        this.statusDetail = 'امسح رمز QR من واتساب ← الأجهزة المرتبطة';
         void Promise.resolve()
           .then(() => QRCode.toDataURL(update.qr!, { width: 280, margin: 2 }))
           .then((url) => {
@@ -233,7 +233,7 @@ export class WhatsAppBaileysClient implements OnModuleInit, OnModuleDestroy {
 
       if (update.connection === 'open') {
         this.status = 'ready';
-        this.statusDetail = 'connected';
+        this.statusDetail = 'واتساب مرتبط';
         this.latestQr = null;
         this.latestQrDataUrl = null;
         const user = (sock as unknown as { user?: { id?: string } }).user?.id ?? null;
@@ -246,8 +246,8 @@ export class WhatsAppBaileysClient implements OnModuleInit, OnModuleDestroy {
         const loggedOut = code === DisconnectReason.loggedOut;
         this.status = 'disconnected';
         this.statusDetail = loggedOut
-          ? 'logged out — scan QR again'
-          : `disconnected (${code ?? 'unknown'}) — reconnecting`;
+          ? 'تم تسجيل الخروج — امسح رمز QR مجدداً'
+          : 'انقطع الاتصال — جاري إعادة المحاولة…';
         this.sock = null;
         this.connectedUser = null;
 

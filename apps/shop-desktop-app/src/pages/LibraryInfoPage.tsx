@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../lib/auth";
-import { getApiBase, getCustomerShopUrl, formatCleanUrl, shopApi } from "../lib/api";
+import { getCustomerShopUrl, formatCleanUrl, shopApi } from "../lib/api";
 import { openExternalUrl } from "../lib/openExternal";
 import { Badge, Button, Panel } from "../components/ui";
 import { Icons } from "../components/icons";
@@ -170,8 +170,8 @@ export function LibraryInfoPage() {
     <div className="page-fit gap-2.5">
       <PageHeading
         icon={Icons.customers({ size: 22 })}
-        title="معلومات البرنامج والموقع المتصل"
-        description="حالة المكتبة والجهاز والخادم المرتبط بهذا التطبيق"
+        title="معلومات المكتبة"
+        description="بيانات مكتبتك والجهاز المرتبط بهذا التطبيق"
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <Button
@@ -416,16 +416,6 @@ export function LibraryInfoPage() {
               {store?.tax_rate_bps != null
                 ? `${(store.tax_rate_bps / 100).toFixed(2)}%`
                 : "—"}
-            </Field>
-            <Field label="الخادم" icon={Icons.refresh({ size: 13 })} dir="ltr">
-              <button
-                type="button"
-                onClick={() => void openExternalUrl(getApiBase())}
-                className="max-w-full truncate text-start text-meta text-info underline-offset-2 hover:underline"
-                title="فتح في المتصفح"
-              >
-                {getApiBase()}
-              </button>
             </Field>
             {store?.order_number_prefix ? (
               <Field label="بادئة الطلب" icon={Icons.tag({ size: 13 })}>

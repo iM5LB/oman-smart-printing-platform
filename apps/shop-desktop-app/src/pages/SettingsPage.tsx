@@ -11,7 +11,6 @@ import {
 import { Button, Input, Panel } from "../components/ui";
 import { Icons } from "../components/icons";
 import { PageHeading } from "../components/PageHeading";
-import { WhatsAppBotPanel } from "../components/WhatsAppBotPanel";
 import {
   fileRetentionAr,
   pickupPolicyAr,
@@ -338,7 +337,7 @@ export function SettingsPage() {
       <PageHeading
         icon={Icons.settings({ size: 22 })}
         title="الإعدادات"
-        description="طباعة، بيانات المكتبة، أمان الجهاز، وواتساب OTP"
+        description="طباعة وتشغيل المكتبة، بياناتها، وأمان هذا الجهاز"
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-meta text-text-muted tabular-nums" dir="ltr">
@@ -370,7 +369,7 @@ export function SettingsPage() {
         </div>
       )}
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-2 overflow-hidden lg:grid-cols-2 lg:grid-rows-2">
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-2 overflow-hidden lg:grid-cols-2">
         <Panel className="flex min-h-0 flex-col overflow-hidden">
           <SectionTitle
             title="الطباعة والتشغيل"
@@ -475,19 +474,67 @@ export function SettingsPage() {
         </Panel>
 
         <Panel className="flex min-h-0 flex-col overflow-hidden">
-          <SectionTitle title="بوت واتساب OTP" icon={Icons.phone({ size: 13 })} />
-          <div className="min-h-0 flex-1 overflow-hidden p-2.5">
-            <WhatsAppBotPanel compact />
-          </div>
+          <SectionTitle title="أمان الجهاز" icon={Icons.settings({ size: 13 })} />
+          <form
+            className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden p-2.5"
+            onSubmit={(e) => void saveDeviceSecurity(e)}
+          >
+            <label className="block space-y-0.5">
+              <span className="text-caption text-text-muted">هاتف تأكيد OTP</span>
+              <Input
+                dir="ltr"
+                value={deviceConfirmPhone}
+                onChange={(e) => setDeviceConfirmPhone(e.target.value)}
+                placeholder="+968…"
+                required
+                className="!py-1.5"
+              />
+            </label>
+            <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+              <label className="block space-y-0.5">
+                <span className="text-caption text-text-muted">
+                  كلمة مرور الجهاز الجديدة
+                </span>
+                <Input
+                  type="password"
+                  dir="ltr"
+                  value={devicePassword}
+                  onChange={(e) => setDevicePassword(e.target.value)}
+                  minLength={6}
+                  required
+                  className="!py-1.5"
+                />
+              </label>
+              <label className="block space-y-0.5">
+                <span className="text-caption text-text-muted">تأكيد كلمة المرور</span>
+                <Input
+                  type="password"
+                  dir="ltr"
+                  value={devicePasswordConfirm}
+                  onChange={(e) => setDevicePasswordConfirm(e.target.value)}
+                  minLength={6}
+                  required
+                  className="!py-1.5"
+                />
+              </label>
+            </div>
+            <Button
+              type="submit"
+              disabled={saving || !token}
+              className="mt-auto w-full shrink-0 !py-1.5 sm:w-auto"
+            >
+              {saving ? "جاري الحفظ…" : "حفظ أمان الجهاز"}
+            </Button>
+          </form>
         </Panel>
 
-        <Panel className="flex min-h-0 flex-col overflow-hidden">
+        <Panel className="flex min-h-0 flex-col overflow-hidden lg:col-span-2">
           <SectionTitle title="بيانات المكتبة" icon={Icons.bag({ size: 13 })} />
           <form
             className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden p-2.5"
             onSubmit={(e) => void saveStore(e)}
           >
-            <div className="grid min-h-0 flex-1 grid-cols-2 content-start gap-x-2 gap-y-1.5">
+            <div className="grid min-h-0 flex-1 grid-cols-2 content-start gap-x-2 gap-y-1.5 lg:grid-cols-3">
               <label className="block space-y-0.5">
                 <span className="text-caption text-text-muted">الاسم</span>
                 <Input
@@ -546,61 +593,6 @@ export function SettingsPage() {
               className="w-full shrink-0 !py-1.5 sm:w-auto"
             >
               {saving ? "جاري الحفظ…" : "حفظ بيانات المكتبة"}
-            </Button>
-          </form>
-        </Panel>
-
-        <Panel className="flex min-h-0 flex-col overflow-hidden">
-          <SectionTitle title="أمان الجهاز" icon={Icons.settings({ size: 13 })} />
-          <form
-            className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden p-2.5"
-            onSubmit={(e) => void saveDeviceSecurity(e)}
-          >
-            <label className="block space-y-0.5">
-              <span className="text-caption text-text-muted">هاتف تأكيد OTP</span>
-              <Input
-                dir="ltr"
-                value={deviceConfirmPhone}
-                onChange={(e) => setDeviceConfirmPhone(e.target.value)}
-                placeholder="+968…"
-                required
-                className="!py-1.5"
-              />
-            </label>
-            <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-              <label className="block space-y-0.5">
-                <span className="text-caption text-text-muted">
-                  كلمة مرور الجهاز الجديدة
-                </span>
-                <Input
-                  type="password"
-                  dir="ltr"
-                  value={devicePassword}
-                  onChange={(e) => setDevicePassword(e.target.value)}
-                  minLength={6}
-                  required
-                  className="!py-1.5"
-                />
-              </label>
-              <label className="block space-y-0.5">
-                <span className="text-caption text-text-muted">تأكيد كلمة المرور</span>
-                <Input
-                  type="password"
-                  dir="ltr"
-                  value={devicePasswordConfirm}
-                  onChange={(e) => setDevicePasswordConfirm(e.target.value)}
-                  minLength={6}
-                  required
-                  className="!py-1.5"
-                />
-              </label>
-            </div>
-            <Button
-              type="submit"
-              disabled={saving || !token}
-              className="mt-auto w-full shrink-0 !py-1.5 sm:w-auto"
-            >
-              {saving ? "جاري الحفظ…" : "حفظ أمان الجهاز"}
             </Button>
           </form>
         </Panel>

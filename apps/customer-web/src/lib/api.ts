@@ -16,11 +16,24 @@ export function getApiBase(): string {
 }
 
 export async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${getApiBase()}/api/v1${path}`, options);
+  let res: Response;
+  try {
+    res = await fetch(`${getApiBase()}/api/v1${path}`, options);
+  } catch {
+    throw new Error('تعذر الاتصال بالخادم. تحقق من الإنترنت وحاول مجدداً.');
+  }
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ message: 'خطأ في الاتصال' }));
-    const msg = Array.isArray(err.message) ? err.message[0] : err.message;
-    throw new Error(msg ?? `HTTP ${res.status}`);
+    const err = await res.json().catch(() => null);
+    const raw = err && typeof err === 'object' && 'message' in err ? (err as { message?: string | string[] }).message : null;
+    const msg = Array.isArray(raw) ? raw[0] : raw;
+    if (typeof msg === 'string' && /[\u0600-\u06FF]/.test(msg) && msg.length < 220) {
+      throw new Error(msg);
+    }
+    if (res.status === 400) throw new Error('البيانات غير صالحة. تحقق وأعد المحاولة.');
+    if (res.status === 401) throw new Error('انتهت الجلسة. سجّل الدخول مجدداً.');
+    if (res.status === 404) throw new Error('المطلوب غير موجود.');
+    if (res.status >= 500) throw new Error('الخدمة غير متاحة مؤقتاً. حاول بعد قليل.');
+    throw new Error('تعذر إكمال الطلب. حاول مجدداً.');
   }
   return res.json();
 }

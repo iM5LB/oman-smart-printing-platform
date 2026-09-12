@@ -1,11 +1,52 @@
 import { config } from 'dotenv';
 import { resolve } from 'path';
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
+import {
+  BadRequestException,
+  ValidationPipe,
+  type ValidationError,
+} from '@nestjs/common';
 import { json, urlencoded } from 'express';
 import { AppModule } from './app.module';
 
 config({ path: resolve(__dirname, '../../../.env') });
+
+function firstValidationMessage(errors: ValidationError[]): string {
+  for (const err of errors) {
+    const constraints = err.constraints ? Object.values(err.constraints) : [];
+    if (constraints.length) return constraints[0]!;
+    if (err.children?.length) {
+      const nested = firstValidationMessage(err.children);
+      if (nested) return nested;
+    }
+  }
+  return 'البيانات المرسلة غير صالحة';
+}
+
+function toArabicValidationMessage(raw: string): string {
+  const msg = raw.toLowerCase();
+  if (msg.includes('should not exist') || msg.includes('whitelist')) {
+    return 'حقل غير مسموح في الطلب';
+  }
+  if (msg.includes('must be a string') || msg.includes('should be a string')) {
+    return 'قيمة نصية مطلوبة';
+  }
+  if (msg.includes('must be a number') || msg.includes('should be a number')) {
+    return 'قيمة رقمية مطلوبة';
+  }
+  if (msg.includes('must be an email') || msg.includes('email')) {
+    return 'البريد الإلكتروني غير صالح';
+  }
+  if (msg.includes('should not be empty') || msg.includes('must not be empty')) {
+    return 'هذا الحقل مطلوب';
+  }
+  if (msg.includes('must be longer') || msg.includes('minlength')) {
+    return 'القيمة قصيرة جداً';
+  }
+  // Keep already-Arabic / custom messages from DTOs.
+  if (/[\u0600-\u06FF]/.test(raw)) return raw;
+  return 'البيانات المرسلة غير صالحة';
+}
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -55,6 +96,10 @@ async function bootstrap() {
       whitelist: true,
       forbidNonWhitelisted: true,
       transform: true,
+      exceptionFactory: (errors) =>
+        new BadRequestException(
+          toArabicValidationMessage(firstValidationMessage(errors)),
+        ),
     }),
   );
 
@@ -63,7 +108,6 @@ async function bootstrap() {
   const port = Number(process.env.PORT ?? process.env.API_PORT ?? 4000);
   await app.listen(port, '0.0.0.0');
   console.log(`API running on http://0.0.0.0:${port}`);
-  console.log('Library setup unlock: POST /api/v1/library/setup/unlock');
 }
 
 bootstrap();
