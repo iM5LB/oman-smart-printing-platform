@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import { FormEvent, useDeferredValue, useEffect, useRef, useState } from 'react';
 import {
   DoorOpen,
@@ -28,12 +29,23 @@ import { TIBAA } from '@/lib/brand';
 import { TibaaBrand } from '@/components/tibaa-brand';
 import { SiteFooter } from '@/components/site-footer';
 import { PhoneInput } from '@/components/phone-input';
-import { LocationPickerMap } from '@/components/location-picker-map';
 import {
   OpeningHoursEditor,
   defaultHours,
   type HourRow,
 } from '@/components/opening-hours-editor';
+
+const LocationPickerMap = dynamic(
+  () => import('@/components/location-picker-map').then((m) => m.LocationPickerMap),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="rounded-xl border border-border bg-background px-4 py-8 text-center text-sm text-text-muted">
+        جاري تحميل الخريطة…
+      </div>
+    ),
+  },
+);
 import {
   clearCustomerSession,
   getCustomerPhone,
