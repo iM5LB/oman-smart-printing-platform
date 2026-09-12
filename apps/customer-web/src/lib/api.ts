@@ -225,7 +225,15 @@ export type PlatformStore = {
   wilayat: string | null;
   area: string | null;
   address: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
   is_active: boolean;
+  order_number_prefix?: string;
+  auto_print_paid_orders?: boolean;
+  pay_at_pickup_print_policy?: string;
+  file_retention_policy?: string;
+  paid_orders_priority?: string;
+  device_confirm_phone?: string | null;
   created_at: string;
   orders_count: number;
   devices_count: number;
@@ -262,6 +270,14 @@ export async function platformUpdateStore(
     wilayat: string | null;
     area: string | null;
     address: string | null;
+    latitude: number | null;
+    longitude: number | null;
+    order_number_prefix: string;
+    auto_print_paid_orders: boolean;
+    pay_at_pickup_print_policy: string;
+    file_retention_policy: string;
+    paid_orders_priority: string;
+    device_confirm_phone: string | null;
     is_active: boolean;
   }>,
 ) {

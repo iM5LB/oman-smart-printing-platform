@@ -1,11 +1,12 @@
 'use client';
 
 import Link from 'next/link';
-import { FormEvent, useDeferredValue, useEffect, useState } from 'react';
+import { FormEvent, useDeferredValue, useEffect, useRef, useState } from 'react';
 import {
   DoorOpen,
   MapPin,
   Pencil,
+  Power,
   Search,
   Store,
   Trash2,
@@ -27,6 +28,7 @@ import { TIBAA } from '@/lib/brand';
 import { TibaaBrand } from '@/components/tibaa-brand';
 import { SiteFooter } from '@/components/site-footer';
 import { PhoneInput } from '@/components/phone-input';
+import { LocationPickerMap } from '@/components/location-picker-map';
 import {
   OpeningHoursEditor,
   defaultHours,
@@ -49,6 +51,106 @@ type PublicStore = {
   is_open: boolean;
 };
 
+type EditDraft = {
+  name: string;
+  phone: string;
+  governorate: string;
+  wilayat: string;
+  area: string;
+  address: string;
+  latitude: string;
+  longitude: string;
+  order_number_prefix: string;
+  auto_print_paid_orders: boolean;
+  pay_at_pickup_print_policy: string;
+  file_retention_policy: string;
+  paid_orders_priority: string;
+  device_confirm_phone: string;
+  is_active: boolean;
+  hours: HourRow[];
+};
+
+const PICKUP_POLICIES = [
+  { value: 'require_approval', label: 'مراجعة قبل الطباعة' },
+  { value: 'auto_print', label: 'طباعة تلقائية فور الطلب' },
+  { value: 'print_on_arrival', label: 'طباعة عند وصول العميل' },
+];
+
+const RETENTION_POLICIES = [
+  { value: 'immediate', label: 'فوري' },
+  { value: 'one_hour', label: 'ساعة واحدة' },
+  { value: 'twenty_four_hours', label: '24 ساعة' },
+  { value: 'three_days', label: '3 أيام' },
+  { value: 'seven_days', label: '7 أيام' },
+];
+
+const PRIORITIES = [
+  { value: 'urgent', label: 'عاجل' },
+  { value: 'normal', label: 'عادي' },
+  { value: 'low', label: 'منخفض' },
+];
+
+function locationLabel(store: {
+  area?: string | null;
+  wilayat?: string | null;
+  governorate?: string | null;
+  address?: string | null;
+}) {
+  return (
+    [store.area, store.wilayat, store.governorate].filter(Boolean).join('، ') ||
+    store.address ||
+    null
+  );
+}
+
+function isOpenNow(
+  hours: Array<{
+    day_of_week: number;
+    open_time: string;
+    close_time: string;
+    is_closed: boolean;
+  }>,
+) {
+  if (!hours?.length) return false;
+  const oman = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Muscat' }));
+  const omanDay = (oman.getDay() + 1) % 7;
+  const today = hours.find((h) => h.day_of_week === omanDay);
+  if (!today || today.is_closed) return false;
+  const t = `${String(oman.getHours()).padStart(2, '0')}:${String(oman.getMinutes()).padStart(2, '0')}`;
+  const open = today.open_time.slice(0, 5);
+  const close = today.close_time.slice(0, 5);
+  return t >= open && t < close;
+}
+
+function draftFromStore(store: PlatformStore): EditDraft {
+  return {
+    name: store.name,
+    phone: store.phone ?? '',
+    governorate: store.governorate ?? '',
+    wilayat: store.wilayat ?? '',
+    area: store.area ?? '',
+    address: store.address ?? '',
+    latitude: store.latitude != null ? String(store.latitude) : '',
+    longitude: store.longitude != null ? String(store.longitude) : '',
+    order_number_prefix: store.order_number_prefix ?? '#',
+    auto_print_paid_orders: store.auto_print_paid_orders ?? true,
+    pay_at_pickup_print_policy: store.pay_at_pickup_print_policy ?? 'require_approval',
+    file_retention_policy: store.file_retention_policy ?? 'twenty_four_hours',
+    paid_orders_priority: store.paid_orders_priority ?? 'urgent',
+    device_confirm_phone: store.device_confirm_phone ?? '',
+    is_active: store.is_active,
+    hours:
+      store.opening_hours?.length === 7
+        ? store.opening_hours.map((h) => ({
+            day_of_week: h.day_of_week,
+            open_time: h.open_time.slice(0, 5),
+            close_time: h.close_time.slice(0, 5),
+            is_closed: h.is_closed,
+          }))
+        : defaultHours(),
+  };
+}
+
 export function HomeDirectory() {
   const [query, setQuery] = useState('');
   const deferredQuery = useDeferredValue(query);
@@ -66,12 +168,13 @@ export function HomeDirectory() {
   const [authError, setAuthError] = useState('');
   const [devCode, setDevCode] = useState<string | null>(null);
   const [adminStores, setAdminStores] = useState<PlatformStore[]>([]);
+  const [adminLoading, setAdminLoading] = useState(false);
   const [editing, setEditing] = useState<PlatformStore | null>(null);
-  const [editName, setEditName] = useState('');
-  const [editPhone, setEditPhone] = useState('');
-  const [editHours, setEditHours] = useState<HourRow[]>(defaultHours());
+  const [draft, setDraft] = useState<EditDraft | null>(null);
   const [editBusy, setEditBusy] = useState(false);
   const [editError, setEditError] = useState('');
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   const refreshSession = async () => {
     const ok = isLoggedIn();
@@ -99,11 +202,14 @@ export function HomeDirectory() {
   const loadAdminStores = async () => {
     const token = getCustomerToken();
     if (!token) return;
+    setAdminLoading(true);
     try {
       const res = await platformListStores(token);
       setAdminStores(res.stores);
     } catch {
       setAdminStores([]);
+    } finally {
+      setAdminLoading(false);
     }
   };
 
@@ -112,6 +218,22 @@ export function HomeDirectory() {
       if (isAdmin) void loadAdminStores();
     });
   }, []);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onDoc = (e: MouseEvent) => {
+      if (!menuRef.current?.contains(e.target as Node)) setMenuOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMenuOpen(false);
+    };
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDoc);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [menuOpen]);
 
   useEffect(() => {
     let cancelled = false;
@@ -170,6 +292,7 @@ export function HomeDirectory() {
   }
 
   async function handleLogout() {
+    setMenuOpen(false);
     const token = getCustomerToken();
     if (token) {
       try {
@@ -187,37 +310,55 @@ export function HomeDirectory() {
 
   function openEdit(store: PlatformStore) {
     setEditing(store);
-    setEditName(store.name);
-    setEditPhone(store.phone ?? '');
-    setEditHours(
-      store.opening_hours?.length === 7
-        ? store.opening_hours.map((h) => ({
-            day_of_week: h.day_of_week,
-            open_time: h.open_time.slice(0, 5),
-            close_time: h.close_time.slice(0, 5),
-            is_closed: h.is_closed,
-          }))
-        : defaultHours(),
-    );
+    setDraft(draftFromStore(store));
     setEditError('');
+  }
+
+  function patchDraft(patch: Partial<EditDraft>) {
+    setDraft((prev) => (prev ? { ...prev, ...patch } : prev));
   }
 
   async function saveEdit(e: FormEvent) {
     e.preventDefault();
-    if (!editing) return;
+    if (!editing || !draft) return;
     const token = getCustomerToken();
     if (!token) return;
+    const latRaw = draft.latitude.trim();
+    const lngRaw = draft.longitude.trim();
+    const latitude = latRaw === '' ? null : Number(latRaw);
+    const longitude = lngRaw === '' ? null : Number(lngRaw);
+    if (latRaw && !Number.isFinite(latitude)) {
+      setEditError('خط العرض غير صالح');
+      return;
+    }
+    if (lngRaw && !Number.isFinite(longitude)) {
+      setEditError('خط الطول غير صالح');
+      return;
+    }
     setEditBusy(true);
     setEditError('');
     try {
       await platformUpdateStore(token, editing.slug, {
-        name: editName.trim(),
-        phone: editPhone.trim() || null,
+        name: draft.name.trim(),
+        phone: draft.phone.trim() || null,
+        governorate: draft.governorate.trim() || null,
+        wilayat: draft.wilayat.trim() || null,
+        area: draft.area.trim() || null,
+        address: draft.address.trim() || null,
+        latitude,
+        longitude,
+        order_number_prefix: draft.order_number_prefix.trim() || '#',
+        auto_print_paid_orders: draft.auto_print_paid_orders,
+        pay_at_pickup_print_policy: draft.pay_at_pickup_print_policy,
+        file_retention_policy: draft.file_retention_policy,
+        paid_orders_priority: draft.paid_orders_priority,
+        device_confirm_phone: draft.device_confirm_phone.trim() || null,
+        is_active: draft.is_active,
       });
-      await platformSetHours(token, editing.slug, editHours);
+      await platformSetHours(token, editing.slug, draft.hours);
       await loadAdminStores();
       setEditing(null);
-      // refresh public list too
+      setDraft(null);
       const res = await listStores(deferredQuery);
       setStores(res.stores);
     } catch (err) {
@@ -241,163 +382,107 @@ export function HomeDirectory() {
     }
   }
 
+  const visibleAdminStores = adminStores.filter((store) => {
+    const q = deferredQuery.trim().toLowerCase();
+    if (!q) return true;
+    return [store.name, store.slug, store.governorate, store.wilayat, store.area, store.address]
+      .filter(Boolean)
+      .some((v) => String(v).toLowerCase().includes(q));
+  });
+
   return (
     <div className="page-shell page-shell-wide shell-home">
       <div className="page-content flex min-h-0 flex-col">
-        <header className="shrink-0 border-b border-border/70 bg-surface/95 px-4 py-4 backdrop-blur-sm sm:px-6 lg:px-8">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:gap-5">
-            <Link href="/" className="flex shrink-0 items-center gap-3 self-center md:self-auto">
-              <TibaaBrand variant="icon" size="sm" className="!h-12 !w-12" />
-              <div className="text-start leading-tight">
-                <p className="text-lg font-extrabold tracking-tight text-primary sm:text-xl">
-                  {TIBAA.nameAr}
-                </p>
-                <p className="text-sm font-bold text-teal">{TIBAA.nameEn}</p>
-              </div>
-            </Link>
+        <header className="store-navbar !px-4 sm:!px-6 lg:!px-8">
+          <Link href="/" className="flex min-w-0 shrink-0 items-center gap-2">
+            <TibaaBrand variant="icon" size="sm" className="!size-9 !rounded-xl !p-0.5" />
+            <h1 className="truncate text-sm font-bold text-text sm:text-base">{TIBAA.nameAr}</h1>
+          </Link>
 
-            <label className="relative block min-w-0 flex-1">
-              <span className="sr-only">بحث عن مكتبة</span>
-              <Search className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-text-muted" />
-              <input
-                type="search"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="ابحث بالاسم أو المنطقة…"
-                className="input-field w-full !ps-10"
-                autoComplete="off"
-              />
-            </label>
+          <label className="relative block min-w-0 flex-1">
+            <span className="sr-only">بحث عن مكتبة</span>
+            <Search className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-text-muted" />
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="ابحث بالاسم أو المنطقة…"
+              className="input-field w-full !py-2.5 !ps-10"
+              autoComplete="off"
+            />
+          </label>
 
-            <div className="flex w-full shrink-0 flex-col gap-2 sm:flex-row md:w-auto">
-              <Link
-                href="/onboarding"
-                className="btn-primary btn-compact w-full text-center md:min-w-[10rem]"
-              >
-                إعداد مكتبة جديدة
-              </Link>
-              {loggedIn ? (
+          <div className="relative shrink-0" ref={menuRef}>
+            <button
+              type="button"
+              aria-label={loggedIn ? 'حسابي' : 'تسجيل الدخول'}
+              aria-expanded={menuOpen}
+              onClick={() => {
+                if (!loggedIn) {
+                  setAuthOpen(true);
+                  setAuthStep('phone');
+                  setAuthError('');
+                  return;
+                }
+                setMenuOpen((v) => !v);
+              }}
+              className="nav-icon-btn relative"
+            >
+              <UserRound className="size-5" />
+              {loggedIn ? <span className="nav-user-dot" /> : null}
+            </button>
+
+            {menuOpen && loggedIn ? (
+              <div className="account-dropdown" role="menu">
+                {phone ? (
+                  <div className="account-dropdown-phone unicode-bidi-isolate" dir="ltr">
+                    {phone}
+                  </div>
+                ) : null}
+                {admin ? (
+                  <>
+                    <p className="px-2.5 py-1.5 text-center text-[11px] font-semibold text-teal">
+                      وضع المشرف
+                    </p>
+                    <Link
+                      href="/onboarding"
+                      role="menuitem"
+                      className="account-dropdown-item no-underline"
+                      onClick={() => setMenuOpen(false)}
+                    >
+                      <Store className="size-4" aria-hidden />
+                      <span>إعداد مكتبة جديدة</span>
+                    </Link>
+                  </>
+                ) : null}
                 <button
                   type="button"
-                  className="btn-ghost btn-compact inline-flex w-full items-center justify-center gap-2 md:w-auto"
+                  role="menuitem"
+                  className="account-dropdown-item account-dropdown-logout"
                   onClick={() => void handleLogout()}
                 >
-                  <DoorOpen className="size-4" />
-                  {admin ? 'خروج المشرف' : 'خروج'}
+                  <DoorOpen className="size-4" aria-hidden />
+                  <span>خروج</span>
                 </button>
-              ) : (
-                <button
-                  type="button"
-                  className="btn-ghost btn-compact inline-flex w-full items-center justify-center gap-2 md:w-auto"
-                  onClick={() => {
-                    setAuthOpen(true);
-                    setAuthStep('phone');
-                    setAuthError('');
-                  }}
-                >
-                  <UserRound className="size-4" />
-                  دخول
-                </button>
-              )}
-            </div>
+              </div>
+            ) : null}
           </div>
-          {admin && phone ? (
-            <p className="mt-3 text-xs font-medium text-teal">
-              وضع المشرف ·{' '}
-              <span className="unicode-bidi-isolate" dir="ltr">
-                {phone}
-              </span>
-            </p>
-          ) : null}
         </header>
 
         <main className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
-          {admin ? (
-            <section className="mb-8">
-              <div className="mb-3 flex items-end justify-between gap-3">
-                <div>
-                  <h2 className="text-base font-bold text-text sm:text-lg">إدارة المكتبات</h2>
-                  <p className="mt-0.5 text-xs text-text-muted sm:text-sm">
-                    تعديل أو إيقاف أي مكتبة على المنصة
-                  </p>
-                </div>
-                <p className="text-xs text-text-muted tabular-nums">{adminStores.length} مكتبة</p>
-              </div>
-              <ul className="space-y-2">
-                {adminStores.map((store) => (
-                  <li
-                    key={store.id}
-                    className="flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-surface px-3.5 py-3"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="truncate font-bold text-text">{store.name}</p>
-                        <span
-                          className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                            store.is_active
-                              ? 'bg-success/10 text-success'
-                              : 'bg-error/10 text-error'
-                          }`}
-                        >
-                          {store.is_active ? 'نشطة' : 'موقوفة'}
-                        </span>
-                      </div>
-                      <p className="mt-0.5 text-xs text-text-muted" dir="ltr">
-                        /{store.slug} · {store.orders_count} طلب
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <Link href={`/${store.slug}`} className="btn-outline btn-compact !px-3 !py-1.5 text-xs">
-                        فتح
-                      </Link>
-                      <button
-                        type="button"
-                        className="btn-ghost btn-compact inline-flex items-center gap-1 !px-3 !py-1.5 text-xs"
-                        onClick={() => openEdit(store)}
-                      >
-                        <Pencil className="size-3.5" />
-                        تعديل
-                      </button>
-                      {store.is_active ? (
-                        <button
-                          type="button"
-                          className="btn-ghost btn-compact inline-flex items-center gap-1 !px-3 !py-1.5 text-xs text-error"
-                          onClick={() => void removeStore(store)}
-                        >
-                          <Trash2 className="size-3.5" />
-                          إيقاف
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          className="btn-ghost btn-compact !px-3 !py-1.5 text-xs text-success"
-                          onClick={() => {
-                            const token = getCustomerToken();
-                            if (!token) return;
-                            void platformUpdateStore(token, store.slug, { is_active: true }).then(
-                              () => loadAdminStores(),
-                            );
-                          }}
-                        >
-                          إعادة تفعيل
-                        </button>
-                      )}
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ) : null}
-
           <div className="mb-4 flex items-end justify-between gap-3">
             <div>
-              <h2 className="text-base font-bold text-text sm:text-lg">المكتبات</h2>
+              <h2 className="text-base font-bold text-text sm:text-lg">
+                {admin ? 'إدارة المكتبات' : 'المكتبات'}
+              </h2>
               <p className="mt-0.5 text-xs text-text-muted sm:text-sm">
-                اختر مكتبة لبدء طلب الطباعة
+                {admin ? 'اضغط البطاقة لفتح المكتبة · عدّل أو أوقف من الأزرار' : 'اختر مكتبة لبدء طلب الطباعة'}
               </p>
             </div>
-            {!loading ? (
-              <p className="text-xs text-text-muted tabular-nums sm:text-sm">{stores.length} مكتبة</p>
+            {!(loading || (admin && adminLoading)) ? (
+              <p className="text-xs text-text-muted tabular-nums sm:text-sm">
+                {(admin ? visibleAdminStores.length : stores.length)} مكتبة
+              </p>
             ) : null}
           </div>
 
@@ -407,7 +492,7 @@ export function HomeDirectory() {
             </p>
           ) : null}
 
-          {loading ? (
+          {loading || (admin && adminLoading) ? (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {Array.from({ length: 6 }).map((_, i) => (
                 <div
@@ -416,68 +501,166 @@ export function HomeDirectory() {
                 />
               ))}
             </div>
-          ) : stores.length === 0 ? (
+          ) : (admin ? visibleAdminStores.length === 0 : stores.length === 0) ? (
             <div className="rounded-2xl border border-dashed border-border bg-surface/70 py-16 text-center">
               <Store className="mx-auto size-10 text-text-muted/50" />
               <p className="mt-3 text-sm font-medium text-text">لا توجد مكتبات مطابقة</p>
-              <p className="mt-1 text-xs text-text-muted">جرّب بحثاً آخر أو سجّل مكتبتك</p>
-              <Link href="/onboarding" className="btn-outline btn-compact mt-4 inline-flex">
-                إعداد مكتبة جديدة
-              </Link>
+              <p className="mt-1 text-xs text-text-muted">
+                {admin ? 'جرّب بحثاً آخر أو أضف مكتبة جديدة من حسابك' : 'جرّب بحثاً آخر'}
+              </p>
             </div>
           ) : (
             <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              {stores.map((store, i) => (
-                <li
-                  key={store.slug}
-                  className="animate-fade-in-up"
-                  style={{ animationDelay: `${Math.min(i, 12) * 35}ms` }}
-                >
-                  <Link
-                    href={`/${store.slug}`}
-                    className="flex h-full items-center gap-3 rounded-2xl border border-border bg-surface px-3.5 py-3.5 shadow-sm transition-all hover:border-primary/25 hover:bg-accent/40 hover:shadow-md"
+              {(admin ? visibleAdminStores : stores).map((store, i) => {
+                const adminStore = admin
+                  ? (store as PlatformStore)
+                  : adminStores.find((s) => s.slug === store.slug);
+                const open = admin
+                  ? isOpenNow((store as PlatformStore).opening_hours)
+                  : (store as PublicStore).is_open;
+                const loc =
+                  'location_label' in store
+                    ? store.location_label
+                    : locationLabel(store as PlatformStore);
+                return (
+                  <li
+                    key={store.slug}
+                    className="animate-fade-in-up"
+                    style={{ animationDelay: `${Math.min(i, 12) * 35}ms` }}
                   >
-                    <div className="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border bg-background sm:size-16">
-                      {store.logo_url ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={store.logo_url}
-                          alt=""
-                          className="size-full object-cover"
-                        />
-                      ) : (
-                        <Store className="size-6 text-primary/70" />
-                      )}
-                    </div>
-                    <div className="min-w-0 flex-1 text-start">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="truncate text-sm font-bold text-text sm:text-base">
-                          {store.name}
-                        </p>
-                        <span
-                          className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                            store.is_open
-                              ? 'bg-success/10 text-success'
-                              : 'bg-text-muted/10 text-text-muted'
-                          }`}
+                    <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-sm transition-all hover:border-primary/25 hover:shadow-md">
+                      {admin ? (
+                        <Link
+                          href={`/${store.slug}`}
+                          className="flex items-center gap-3 px-3.5 py-3.5 hover:bg-accent/40"
                         >
-                          {store.is_open ? 'مفتوح' : 'مغلق'}
-                        </span>
-                      </div>
-                      {store.location_label ? (
-                        <p className="mt-1 flex items-center gap-1 text-xs text-text-muted sm:text-sm">
-                          <MapPin className="size-3.5 shrink-0" />
-                          <span className="line-clamp-2">{store.location_label}</span>
-                        </p>
+                          <div className="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border bg-background sm:size-16">
+                            {store.logo_url ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={store.logo_url} alt="" className="size-full object-cover" />
+                            ) : (
+                              <Store className="size-6 text-primary/70" />
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1 text-start">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="truncate text-sm font-bold text-text sm:text-base">
+                                {store.name}
+                              </p>
+                              <span
+                                className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                                  open
+                                    ? 'bg-success/10 text-success'
+                                    : 'bg-text-muted/10 text-text-muted'
+                                }`}
+                              >
+                                {open ? 'مفتوح' : 'مغلق'}
+                              </span>
+                              {adminStore && !adminStore.is_active ? (
+                                <span className="shrink-0 rounded-full bg-error/10 px-2 py-0.5 text-[10px] font-semibold text-error">
+                                  موقوفة
+                                </span>
+                              ) : null}
+                            </div>
+                            {loc ? (
+                              <p className="mt-1 flex items-center gap-1 text-xs text-text-muted sm:text-sm">
+                                <MapPin className="size-3.5 shrink-0" />
+                                <span className="line-clamp-2">{loc}</span>
+                              </p>
+                            ) : (
+                              <p className="mt-1 text-xs text-text-muted" dir="ltr">
+                                /{store.slug}
+                              </p>
+                            )}
+                            {adminStore ? (
+                              <p className="mt-1 text-[11px] text-text-muted" dir="ltr">
+                                /{adminStore.slug} · {adminStore.orders_count} طلب
+                              </p>
+                            ) : null}
+                          </div>
+                        </Link>
                       ) : (
-                        <p className="mt-1 text-xs text-text-muted" dir="ltr">
-                          /{store.slug}
-                        </p>
+                        <Link
+                          href={`/${store.slug}`}
+                          className="flex h-full items-center gap-3 px-3.5 py-3.5 hover:bg-accent/40"
+                        >
+                          <div className="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border bg-background sm:size-16">
+                            {store.logo_url ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={store.logo_url} alt="" className="size-full object-cover" />
+                            ) : (
+                              <Store className="size-6 text-primary/70" />
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1 text-start">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="truncate text-sm font-bold text-text sm:text-base">
+                                {store.name}
+                              </p>
+                              <span
+                                className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                                  open
+                                    ? 'bg-success/10 text-success'
+                                    : 'bg-text-muted/10 text-text-muted'
+                                }`}
+                              >
+                                {open ? 'مفتوح' : 'مغلق'}
+                              </span>
+                            </div>
+                            {loc ? (
+                              <p className="mt-1 flex items-center gap-1 text-xs text-text-muted sm:text-sm">
+                                <MapPin className="size-3.5 shrink-0" />
+                                <span className="line-clamp-2">{loc}</span>
+                              </p>
+                            ) : (
+                              <p className="mt-1 text-xs text-text-muted" dir="ltr">
+                                /{store.slug}
+                              </p>
+                            )}
+                          </div>
+                        </Link>
                       )}
+                      {admin && adminStore ? (
+                        <div className="mt-auto grid grid-cols-2 gap-1.5 border-t border-border bg-background/70 px-2.5 py-2">
+                          <button
+                            type="button"
+                            className="btn-ghost btn-compact inline-flex items-center justify-center gap-1 !px-2 !py-1.5 text-xs"
+                            onClick={() => openEdit(adminStore)}
+                          >
+                            <Pencil className="size-3.5" />
+                            تعديل
+                          </button>
+                          {adminStore.is_active ? (
+                            <button
+                              type="button"
+                              className="btn-ghost btn-compact inline-flex items-center justify-center gap-1 !px-2 !py-1.5 text-xs text-error"
+                              onClick={() => void removeStore(adminStore)}
+                            >
+                              <Trash2 className="size-3.5" />
+                              إيقاف
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              className="btn-ghost btn-compact inline-flex items-center justify-center gap-1 !px-2 !py-1.5 text-xs text-success"
+                              onClick={() => {
+                                const token = getCustomerToken();
+                                if (!token) return;
+                                void platformUpdateStore(token, adminStore.slug, {
+                                  is_active: true,
+                                }).then(() => loadAdminStores());
+                              }}
+                            >
+                              <Power className="size-3.5" />
+                              تفعيل
+                            </button>
+                          )}
+                        </div>
+                      ) : null}
                     </div>
-                  </Link>
-                </li>
-              ))}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </main>
@@ -553,45 +736,224 @@ export function HomeDirectory() {
         </div>
       ) : null}
 
-      {editing ? (
+      {editing && draft ? (
         <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/45 p-0 sm:items-center sm:p-4">
           <form
-            className="max-h-[92dvh] w-full max-w-lg overflow-y-auto rounded-t-3xl border border-border bg-surface p-5 shadow-xl sm:rounded-3xl"
+            className="max-h-[92dvh] w-full max-w-2xl overflow-y-auto rounded-t-3xl border border-border bg-surface p-5 shadow-xl sm:rounded-3xl"
             onSubmit={(e) => void saveEdit(e)}
           >
             <div className="mb-4 flex items-center justify-between gap-3">
-              <h2 className="text-lg font-bold">تعديل المكتبة</h2>
+              <div>
+                <h2 className="text-lg font-bold">تعديل المكتبة</h2>
+                <p className="text-xs text-text-muted" dir="ltr">
+                  /{editing.slug}
+                </p>
+              </div>
               <button
                 type="button"
                 className="nav-icon-btn"
-                onClick={() => setEditing(null)}
+                onClick={() => {
+                  setEditing(null);
+                  setDraft(null);
+                }}
                 aria-label="إغلاق"
               >
                 ×
               </button>
             </div>
-            <div className="space-y-3">
-              <label className="block">
-                <span className="option-label">الاسم</span>
-                <input
-                  className="input-field"
-                  value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
-                  required
+            <div className="space-y-5">
+              <section className="space-y-3">
+                <h3 className="text-sm font-bold text-text">بيانات المكتبة</h3>
+                <label className="block">
+                  <span className="option-label">الاسم</span>
+                  <input
+                    className="input-field"
+                    value={draft.name}
+                    onChange={(e) => patchDraft({ name: e.target.value })}
+                    required
+                  />
+                </label>
+                <label className="block">
+                  <span className="option-label">الهاتف</span>
+                  <PhoneInput
+                    value={draft.phone}
+                    onChange={(phone) => patchDraft({ phone })}
+                  />
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="block">
+                    <span className="option-label">بادئة الطلب</span>
+                    <input
+                      className="input-field"
+                      dir="ltr"
+                      value={draft.order_number_prefix}
+                      onChange={(e) => patchDraft({ order_number_prefix: e.target.value })}
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="option-label">هاتف تأكيد الجهاز</span>
+                    <PhoneInput
+                      value={draft.device_confirm_phone}
+                      onChange={(device_confirm_phone) => patchDraft({ device_confirm_phone })}
+                    />
+                  </label>
+                </div>
+                <label className="flex items-center justify-between gap-3 rounded-xl border border-border bg-background px-3 py-2.5">
+                  <span className="text-sm font-medium">المكتبة ظاهرة في الدليل</span>
+                  <input
+                    type="checkbox"
+                    className="sr-only"
+                    checked={draft.is_active}
+                    onChange={(e) => patchDraft({ is_active: e.target.checked })}
+                  />
+                  <span
+                    dir="ltr"
+                    className={`relative h-5 w-9 rounded-full transition-colors ${
+                      draft.is_active ? 'bg-primary' : 'bg-slate-300'
+                    }`}
+                  >
+                    <span
+                      className={`absolute top-0.5 size-4 rounded-full bg-white shadow transition-transform ${
+                        draft.is_active ? 'left-4' : 'left-0.5'
+                      }`}
+                    />
+                  </span>
+                </label>
+              </section>
+
+              <section className="space-y-3">
+                <h3 className="text-sm font-bold text-text">الموقع</h3>
+                <LocationPickerMap
+                  latitude={draft.latitude ? Number(draft.latitude) : null}
+                  longitude={draft.longitude ? Number(draft.longitude) : null}
+                  onPick={(loc) =>
+                    patchDraft({
+                      latitude: String(loc.latitude),
+                      longitude: String(loc.longitude),
+                      governorate: loc.governorate || draft.governorate,
+                      wilayat: loc.wilayat || draft.wilayat,
+                      area: loc.area || draft.area,
+                      address: loc.address || draft.address,
+                    })
+                  }
                 />
-              </label>
-              <label className="block">
-                <span className="option-label">الهاتف</span>
-                <PhoneInput value={editPhone} onChange={setEditPhone} />
-              </label>
-              <div>
-                <span className="option-label">ساعات العمل</span>
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="block">
+                    <span className="option-label">المحافظة</span>
+                    <input
+                      className="input-field"
+                      value={draft.governorate}
+                      onChange={(e) => patchDraft({ governorate: e.target.value })}
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="option-label">الولاية</span>
+                    <input
+                      className="input-field"
+                      value={draft.wilayat}
+                      onChange={(e) => patchDraft({ wilayat: e.target.value })}
+                    />
+                  </label>
+                </div>
+                <label className="block">
+                  <span className="option-label">المنطقة</span>
+                  <input
+                    className="input-field"
+                    value={draft.area}
+                    onChange={(e) => patchDraft({ area: e.target.value })}
+                  />
+                </label>
+                <label className="block">
+                  <span className="option-label">العنوان</span>
+                  <input
+                    className="input-field"
+                    value={draft.address}
+                    onChange={(e) => patchDraft({ address: e.target.value })}
+                  />
+                </label>
+              </section>
+
+              <section className="space-y-3">
+                <h3 className="text-sm font-bold text-text">التشغيل</h3>
+                <label className="flex items-center justify-between gap-3 rounded-xl border border-border bg-background px-3 py-2.5">
+                  <span className="text-sm font-medium">طباعة تلقائية للمدفوع مسبقاً</span>
+                  <input
+                    type="checkbox"
+                    className="sr-only"
+                    checked={draft.auto_print_paid_orders}
+                    onChange={(e) =>
+                      patchDraft({ auto_print_paid_orders: e.target.checked })
+                    }
+                  />
+                  <span
+                    dir="ltr"
+                    className={`relative h-5 w-9 rounded-full transition-colors ${
+                      draft.auto_print_paid_orders ? 'bg-primary' : 'bg-slate-300'
+                    }`}
+                  >
+                    <span
+                      className={`absolute top-0.5 size-4 rounded-full bg-white shadow transition-transform ${
+                        draft.auto_print_paid_orders ? 'left-4' : 'left-0.5'
+                      }`}
+                    />
+                  </span>
+                </label>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <label className="block">
+                    <span className="option-label">الدفع عند الاستلام</span>
+                    <select
+                      className="input-field"
+                      value={draft.pay_at_pickup_print_policy}
+                      onChange={(e) =>
+                        patchDraft({ pay_at_pickup_print_policy: e.target.value })
+                      }
+                    >
+                      {PICKUP_POLICIES.map((o) => (
+                        <option key={o.value} value={o.value}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="block">
+                    <span className="option-label">احتفاظ الملفات</span>
+                    <select
+                      className="input-field"
+                      value={draft.file_retention_policy}
+                      onChange={(e) => patchDraft({ file_retention_policy: e.target.value })}
+                    >
+                      {RETENTION_POLICIES.map((o) => (
+                        <option key={o.value} value={o.value}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="block">
+                    <span className="option-label">أولوية المدفوع</span>
+                    <select
+                      className="input-field"
+                      value={draft.paid_orders_priority}
+                      onChange={(e) => patchDraft({ paid_orders_priority: e.target.value })}
+                    >
+                      {PRIORITIES.map((o) => (
+                        <option key={o.value} value={o.value}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+              </section>
+
+              <section>
+                <h3 className="mb-2 text-sm font-bold text-text">ساعات العمل</h3>
                 <OpeningHoursEditor
-                  value={editHours}
-                  onChange={setEditHours}
+                  value={draft.hours}
+                  onChange={(hours) => patchDraft({ hours })}
                   disabled={editBusy}
                 />
-              </div>
+              </section>
               {editError ? <p className="text-sm text-error">{editError}</p> : null}
             </div>
             <div className="mt-5 flex gap-2">
@@ -599,7 +961,10 @@ export function HomeDirectory() {
                 type="button"
                 className="btn-ghost flex-1"
                 disabled={editBusy}
-                onClick={() => setEditing(null)}
+                onClick={() => {
+                  setEditing(null);
+                  setDraft(null);
+                }}
               >
                 إلغاء
               </button>

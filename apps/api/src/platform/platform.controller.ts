@@ -15,6 +15,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  ValidateIf,
   Max,
   Min,
   ValidateNested,
@@ -47,6 +48,40 @@ class UpdatePlatformStoreDto {
   @IsOptional()
   @IsString()
   address?: string | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsNumber()
+  latitude?: number | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsNumber()
+  longitude?: number | null;
+
+  @IsOptional()
+  @IsString()
+  order_number_prefix?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  auto_print_paid_orders?: boolean;
+
+  @IsOptional()
+  @IsString()
+  pay_at_pickup_print_policy?: string;
+
+  @IsOptional()
+  @IsString()
+  file_retention_policy?: string;
+
+  @IsOptional()
+  @IsString()
+  paid_orders_priority?: string;
+
+  @IsOptional()
+  @IsString()
+  device_confirm_phone?: string | null;
 
   @IsOptional()
   @IsBoolean()

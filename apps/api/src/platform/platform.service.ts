@@ -5,7 +5,12 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { PrismaClient } from '@omsp/database';
+import {
+  FileRetentionPolicy,
+  PayAtPickupPrintPolicy,
+  PrismaClient,
+  QueuePriority,
+} from '@omsp/database';
 import { getPhoneErrorMessageAr, isValidPhone, normalizePhone } from '@omsp/shared';
 import { PRISMA } from '../prisma/prisma.module';
 import { isPlatformAdminPhone } from '../auth/platform-admin';
@@ -46,6 +51,14 @@ export class PlatformService {
       wilayat?: string | null;
       area?: string | null;
       address?: string | null;
+      latitude?: number | null;
+      longitude?: number | null;
+      order_number_prefix?: string;
+      auto_print_paid_orders?: boolean;
+      pay_at_pickup_print_policy?: string;
+      file_retention_policy?: string;
+      paid_orders_priority?: string;
+      device_confirm_phone?: string | null;
       is_active?: boolean;
     },
   ) {
@@ -63,6 +76,64 @@ export class PlatformService {
     if (body.wilayat !== undefined) data.wilayat = body.wilayat?.trim() || null;
     if (body.area !== undefined) data.area = body.area?.trim() || null;
     if (body.address !== undefined) data.address = body.address?.trim() || null;
+    if (body.latitude !== undefined) {
+      const lat = body.latitude;
+      if (lat !== null && (!Number.isFinite(lat) || lat < -90 || lat > 90)) {
+        throw new BadRequestException('خط العرض غير صالح');
+      }
+      data.latitude = lat;
+    }
+    if (body.longitude !== undefined) {
+      const lng = body.longitude;
+      if (lng !== null && (!Number.isFinite(lng) || lng < -180 || lng > 180)) {
+        throw new BadRequestException('خط الطول غير صالح');
+      }
+      data.longitude = lng;
+    }
+    if (body.order_number_prefix !== undefined) {
+      const prefix = body.order_number_prefix.trim().slice(0, 8);
+      if (!prefix) throw new BadRequestException('بادئة رقم الطلب مطلوبة');
+      data.orderNumberPrefix = prefix;
+    }
+    if (body.auto_print_paid_orders !== undefined) {
+      data.autoPrintPaidOrders = Boolean(body.auto_print_paid_orders);
+    }
+    if (body.pay_at_pickup_print_policy !== undefined) {
+      const allowed: PayAtPickupPrintPolicy[] = [
+        'auto_print',
+        'require_approval',
+        'print_on_arrival',
+      ];
+      if (!allowed.includes(body.pay_at_pickup_print_policy as PayAtPickupPrintPolicy)) {
+        throw new BadRequestException('سياسة طباعة الدفع عند الاستلام غير صالحة');
+      }
+      data.payAtPickupPrintPolicy = body.pay_at_pickup_print_policy;
+    }
+    if (body.file_retention_policy !== undefined) {
+      const allowed: FileRetentionPolicy[] = [
+        'immediate',
+        'one_hour',
+        'twenty_four_hours',
+        'three_days',
+        'seven_days',
+      ];
+      if (!allowed.includes(body.file_retention_policy as FileRetentionPolicy)) {
+        throw new BadRequestException('سياسة احتفاظ الملفات غير صالحة');
+      }
+      data.fileRetentionPolicy = body.file_retention_policy;
+    }
+    if (body.paid_orders_priority !== undefined) {
+      const allowed: QueuePriority[] = ['urgent', 'normal', 'low'];
+      if (!allowed.includes(body.paid_orders_priority as QueuePriority)) {
+        throw new BadRequestException('أولوية الطلبات غير صالحة');
+      }
+      data.paidOrdersPriority = body.paid_orders_priority;
+    }
+    if (body.device_confirm_phone !== undefined) {
+      data.deviceConfirmPhone = body.device_confirm_phone
+        ? this.requirePhone(body.device_confirm_phone)
+        : null;
+    }
     if (body.is_active !== undefined) data.isActive = body.is_active;
 
     const updated = await this.db.store.update({
@@ -180,7 +251,15 @@ export class PlatformService {
     wilayat: string | null;
     area: string | null;
     address: string | null;
+    latitude: number | null;
+    longitude: number | null;
     isActive: boolean;
+    orderNumberPrefix: string;
+    autoPrintPaidOrders: boolean;
+    payAtPickupPrintPolicy: string;
+    fileRetentionPolicy: string;
+    paidOrdersPriority: string;
+    deviceConfirmPhone: string | null;
     createdAt: Date;
     openingHours: Array<{
       dayOfWeek: number;
@@ -210,7 +289,15 @@ export class PlatformService {
       wilayat: store.wilayat,
       area: store.area,
       address: store.address,
+      latitude: store.latitude,
+      longitude: store.longitude,
       is_active: store.isActive,
+      order_number_prefix: store.orderNumberPrefix,
+      auto_print_paid_orders: store.autoPrintPaidOrders,
+      pay_at_pickup_print_policy: store.payAtPickupPrintPolicy,
+      file_retention_policy: store.fileRetentionPolicy,
+      paid_orders_priority: store.paidOrdersPriority,
+      device_confirm_phone: store.deviceConfirmPhone,
       created_at: store.createdAt.toISOString(),
       orders_count: store._count?.orders ?? 0,
       devices_count: store._count?.devices ?? 0,

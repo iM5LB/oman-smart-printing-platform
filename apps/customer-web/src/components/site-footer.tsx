@@ -25,9 +25,6 @@ export function SiteFooter({ className = '' }: { className?: string }) {
           <Link href="/terms" className="text-text-muted transition-colors hover:text-primary">
             الشروط والأحكام
           </Link>
-          <Link href="/onboarding" className="font-medium text-teal transition-colors hover:underline">
-            للمكتبات
-          </Link>
           <Link href="/" className="text-text-muted transition-colors hover:text-primary">
             المكتبات
           </Link>
