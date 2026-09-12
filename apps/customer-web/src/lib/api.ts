@@ -197,10 +197,99 @@ export async function requestOtp(phone: string) {
 }
 
 export async function verifyOtp(phone: string, code: string) {
-  return apiFetch<{ token: string; phone: string; expires_at: string }>('/auth/otp/verify', {
+  return apiFetch<{
+    token: string;
+    phone: string;
+    expires_at: string;
+    is_platform_admin?: boolean;
+  }>('/auth/otp/verify', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ phone, code }),
+  });
+}
+
+export async function fetchCustomerMe(token: string) {
+  return apiFetch<{ phone: string; is_platform_admin: boolean }>('/auth/me', {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export type PlatformStore = {
+  id: string;
+  slug: string;
+  name: string;
+  phone: string | null;
+  logo_url: string | null;
+  governorate: string | null;
+  wilayat: string | null;
+  area: string | null;
+  address: string | null;
+  is_active: boolean;
+  created_at: string;
+  orders_count: number;
+  devices_count: number;
+  opening_hours: Array<{
+    day_of_week: number;
+    open_time: string;
+    close_time: string;
+    is_closed: boolean;
+  }>;
+};
+
+async function platformFetch<T>(path: string, token: string, options?: RequestInit): Promise<T> {
+  return apiFetch<T>(path, {
+    ...options,
+    headers: {
+      ...(options?.headers ?? {}),
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+  });
+}
+
+export async function platformListStores(token: string) {
+  return platformFetch<{ stores: PlatformStore[] }>('/platform/stores', token);
+}
+
+export async function platformUpdateStore(
+  token: string,
+  slug: string,
+  body: Partial<{
+    name: string;
+    phone: string | null;
+    governorate: string | null;
+    wilayat: string | null;
+    area: string | null;
+    address: string | null;
+    is_active: boolean;
+  }>,
+) {
+  return platformFetch<{ store: PlatformStore }>(`/platform/stores/${slug}`, token, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function platformSetHours(
+  token: string,
+  slug: string,
+  hours: Array<{
+    day_of_week: number;
+    open_time: string;
+    close_time: string;
+    is_closed: boolean;
+  }>,
+) {
+  return platformFetch<{ store: PlatformStore }>(`/platform/stores/${slug}/hours`, token, {
+    method: 'PUT',
+    body: JSON.stringify({ hours }),
+  });
+}
+
+export async function platformDeleteStore(token: string, slug: string) {
+  return platformFetch<{ ok: boolean; slug: string }>(`/platform/stores/${slug}`, token, {
+    method: 'DELETE',
   });
 }
 

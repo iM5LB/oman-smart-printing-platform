@@ -7,6 +7,7 @@ import { PageHeading } from "../components/PageHeading";
 import { Icons } from "../components/icons";
 import { OrderDetailPanel } from "../components/OrderDetailPanel";
 import { StatCard, StatMoney } from "../components/StatCard";
+import { useToast } from "../components/Toast";
 import {
   SortHeader,
   compareNumber,
@@ -36,13 +37,13 @@ function timeAgo(iso: string) {
 
 export function DashboardPage() {
   const { token, me } = useAuth();
+  const { push: pushToast } = useToast();
   const [stats, setStats] = useState<ShopStats | null>(null);
   const [orders, setOrders] = useState<ShopOrder[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionBusy, setActionBusy] = useState(false);
-  const [actionMsg, setActionMsg] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<
     "order" | "customer" | "phone" | "service" | "status" | "time"
   >("time");
@@ -127,7 +128,6 @@ export function DashboardPage() {
   ) => {
     if (!token || !selected) return;
     setActionBusy(true);
-    setActionMsg(null);
     try {
       if (kind === "dispatch") await shopApi.dispatch(token, selected.id);
       if (kind === "retry") await shopApi.retry(token, selected.id);
@@ -138,10 +138,14 @@ export function DashboardPage() {
         }
         await shopApi.markCollected(token, selected.id);
       }
-      setActionMsg("تم التنفيذ");
+      pushToast({ title: "تم التنفيذ", tone: "success", osNotify: false });
       await load();
     } catch (e) {
-      setActionMsg(e instanceof Error ? e.message : "فشلت العملية");
+      pushToast({
+        title: e instanceof Error ? e.message : "فشلت العملية",
+        tone: "danger",
+        osNotify: false,
+      });
     } finally {
       setActionBusy(false);
     }
@@ -353,7 +357,6 @@ export function DashboardPage() {
             order={selected}
             storeName={me?.store.name}
             busy={actionBusy}
-            message={actionMsg}
             onPrint={() => void runAction("dispatch")}
             onRetry={() => void runAction("retry")}
             onReady={() => void runAction("ready")}

@@ -1,5 +1,6 @@
 import { io, type Socket } from "socket.io-client";
 import { getApiBase } from "./api";
+import { getOsLabel } from "./os";
 import { listPrinters, printDocumentFromUrl } from "./print";
 
 type WsEnvelope = {
@@ -120,9 +121,11 @@ export function connectShopSocket(
 
   socket.on("connect", () => {
     handlers.onPrintStatus?.("متصل بخادم الطباعة");
-    emitMessage("device.hello", {
-      app_version: "0.1.1",
-      os_version: navigator.userAgent,
+    void getOsLabel().then((os) => {
+      emitMessage("device.hello", {
+        app_version: "0.1.1",
+        os_version: os,
+      });
     });
     void syncPrinters();
   });

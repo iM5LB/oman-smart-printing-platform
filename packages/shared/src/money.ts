@@ -107,10 +107,3 @@ export function generateTrackingToken(): string {
   crypto.getRandomValues(bytes);
   return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
 }
-
-/**
- * Apply tax to subtotal (basis points: 500 = 5%).
- */
-export function calculateTax(subtotalBaisa: number, taxRateBps: number): number {
-  return Math.round(subtotalBaisa * taxRateBps / 10000);
-}

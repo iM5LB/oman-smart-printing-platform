@@ -17,6 +17,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { ShopModule } from './shop/shop.module';
 import { AuthModule } from './auth/auth.module';
 import { LibraryModule } from './library/library.module';
+import { PlatformModule } from './platform/platform.module';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { LibraryModule } from './library/library.module';
     ShopModule,
     AuthModule,
     LibraryModule,
+    PlatformModule,
   ],
   providers: [
     {

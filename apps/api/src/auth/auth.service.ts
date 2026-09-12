@@ -10,6 +10,7 @@ import { PrismaClient } from '@omsp/database';
 import { formatOMR, getPhoneErrorMessageAr, isValidPhone, normalizePhone } from '@omsp/shared';
 import { PRISMA } from '../prisma/prisma.module';
 import { SmsService } from '../sms/sms.service';
+import { isPlatformAdminPhone } from './platform-admin';
 
 const OTP_TTL_MS = 5 * 60 * 1000;
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
@@ -109,6 +110,7 @@ export class AuthService {
       token,
       phone,
       expires_at: expiresAt.toISOString(),
+      is_platform_admin: isPlatformAdminPhone(phone),
     };
   }
 
@@ -118,7 +120,17 @@ export class AuthService {
     return { ok: true };
   }
 
-  async resolveSession(token: string | undefined): Promise<{ phone: string }> {
+  async me(token: string | undefined) {
+    const session = await this.resolveSession(token);
+    return {
+      phone: session.phone,
+      is_platform_admin: session.is_platform_admin,
+    };
+  }
+
+  async resolveSession(
+    token: string | undefined,
+  ): Promise<{ phone: string; is_platform_admin: boolean }> {
     if (!token) throw new UnauthorizedException('يجب تسجيل الدخول');
 
     const session = await this.db.customerSession.findUnique({
@@ -132,7 +144,10 @@ export class AuthService {
       throw new UnauthorizedException('انتهت الجلسة. سجّل الدخول مجدداً');
     }
 
-    return { phone: session.phone };
+    return {
+      phone: session.phone,
+      is_platform_admin: isPlatformAdminPhone(session.phone),
+    };
   }
 
   async listOrdersForPhone(phone: string, storeSlug: string) {

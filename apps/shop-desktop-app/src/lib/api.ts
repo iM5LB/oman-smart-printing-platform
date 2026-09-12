@@ -370,6 +370,14 @@ export const shopApi = {
       file_retention_policy?: string;
       paid_orders_priority?: string;
       tax_rate_bps?: number;
+      order_number_prefix?: string;
+      is_active?: boolean;
+      opening_hours?: Array<{
+        day_of_week: number;
+        open_time: string;
+        close_time: string;
+        is_closed: boolean;
+      }>;
     },
   ) =>
     request<ShopMe>("/shop/store", token, {
@@ -390,15 +398,54 @@ export const shopApi = {
   payments: (token: string) => request<ShopPayment[]>("/shop/payments", token),
   customers: (token: string) => request<ShopCustomer[]>("/shop/customers", token),
   pricing: (token: string) => request<ShopPricing>("/shop/pricing", token),
-  updatePricingRule: (token: string, ruleId: string, price_per_page: number) =>
-    request(`/shop/pricing/rules/${ruleId}`, token, {
-      method: "PATCH",
-      body: JSON.stringify({ price_per_page }),
+  createPricingRule: (
+    token: string,
+    body: {
+      paper_size: string;
+      color_mode: string;
+      price_per_page: number;
+      is_active?: boolean;
+    },
+  ) =>
+    request<PricingRule>("/shop/pricing/rules", token, {
+      method: "POST",
+      body: JSON.stringify(body),
     }),
-  updateFinishing: (token: string, serviceId: string, price_baisa: number) =>
-    request(`/shop/pricing/finishing/${serviceId}`, token, {
+  updatePricingRule: (
+    token: string,
+    ruleId: string,
+    body: { price_per_page?: number; is_active?: boolean },
+  ) =>
+    request<PricingRule>(`/shop/pricing/rules/${ruleId}`, token, {
       method: "PATCH",
-      body: JSON.stringify({ price_baisa }),
+      body: JSON.stringify(body),
+    }),
+  createFinishing: (
+    token: string,
+    body: {
+      name_ar: string;
+      price_baisa: number;
+      description?: string | null;
+      is_active?: boolean;
+    },
+  ) =>
+    request<FinishingService>("/shop/pricing/finishing", token, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  updateFinishing: (
+    token: string,
+    serviceId: string,
+    body: {
+      price_baisa?: number;
+      is_active?: boolean;
+      name_ar?: string;
+      description?: string | null;
+    },
+  ) =>
+    request<FinishingService>(`/shop/pricing/finishing/${serviceId}`, token, {
+      method: "PATCH",
+      body: JSON.stringify(body),
     }),
   dispatch: (token: string, orderId: string) =>
     request(`/shop/orders/${orderId}/dispatch`, token, { method: "POST" }),

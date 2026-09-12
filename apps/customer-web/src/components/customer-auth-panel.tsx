@@ -136,7 +136,9 @@ export function CustomerAuthPanel({
     setError(null);
     try {
       const res = await verifyOtp(phone, code);
-      setCustomerSession(res.token, res.phone);
+      setCustomerSession(res.token, res.phone, {
+        is_platform_admin: Boolean(res.is_platform_admin),
+      });
       setSessionPhone(res.phone);
       onSessionChange?.();
       await loadOrders(res.token);

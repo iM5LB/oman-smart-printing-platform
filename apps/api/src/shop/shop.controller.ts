@@ -49,7 +49,14 @@ export class ShopController {
       pay_at_pickup_print_policy?: string;
       file_retention_policy?: string;
       paid_orders_priority?: string;
-      tax_rate_bps?: number;
+      order_number_prefix?: string;
+      is_active?: boolean;
+      opening_hours?: Array<{
+        day_of_week: number;
+        open_time: string;
+        close_time: string;
+        is_closed: boolean;
+      }>;
     },
   ) {
     const { device, store } = req[DEVICE_STORE_KEY];
@@ -90,29 +97,63 @@ export class ShopController {
     return this.shop.getPricing(req[DEVICE_STORE_KEY].store.id);
   }
 
+  @Post('pricing/rules')
+  createRule(
+    @Req() req: DeviceRequest,
+    @Body()
+    body: {
+      paper_size: string;
+      color_mode: string;
+      price_per_page: number;
+      is_active?: boolean;
+    },
+  ) {
+    return this.shop.createPricingRule(req[DEVICE_STORE_KEY].store.id, body ?? {});
+  }
+
   @Patch('pricing/rules/:ruleId')
   updateRule(
     @Req() req: DeviceRequest,
     @Param('ruleId') ruleId: string,
-    @Body() body: { price_per_page: number },
+    @Body() body: { price_per_page?: number; is_active?: boolean },
   ) {
     return this.shop.updatePricingRule(
       req[DEVICE_STORE_KEY].store.id,
       ruleId,
-      body.price_per_page,
+      body ?? {},
     );
+  }
+
+  @Post('pricing/finishing')
+  createFinishing(
+    @Req() req: DeviceRequest,
+    @Body()
+    body: {
+      name_ar: string;
+      price_baisa: number;
+      description?: string | null;
+      is_active?: boolean;
+    },
+  ) {
+    return this.shop.createFinishing(req[DEVICE_STORE_KEY].store.id, body ?? {});
   }
 
   @Patch('pricing/finishing/:serviceId')
   updateFinishing(
     @Req() req: DeviceRequest,
     @Param('serviceId') serviceId: string,
-    @Body() body: { price_baisa: number },
+    @Body()
+    body: {
+      price_baisa?: number;
+      is_active?: boolean;
+      name_ar?: string;
+      description?: string | null;
+    },
   ) {
     return this.shop.updateFinishing(
       req[DEVICE_STORE_KEY].store.id,
       serviceId,
-      body.price_baisa,
+      body ?? {},
     );
   }
 

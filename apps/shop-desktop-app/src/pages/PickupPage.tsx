@@ -4,6 +4,7 @@ import { shopApi, type ShopOrder } from "../lib/api";
 import { Badge, Button, EmptyState, Input, Panel } from "../components/ui";
 import { Icons } from "../components/icons";
 import { PageHeading } from "../components/PageHeading";
+import { useToast } from "../components/Toast";
 import {
   isPaymentPaid,
   orderStatusAr,
@@ -12,6 +13,7 @@ import {
 
 export function PickupPage() {
   const { token } = useAuth();
+  const { push: pushToast } = useToast();
   const [query, setQuery] = useState("");
   const [orders, setOrders] = useState<ShopOrder[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -26,7 +28,9 @@ export function PickupPage() {
       const all = await shopApi.orders(token, "active");
       setOrders(Array.isArray(all) ? all : []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "تعذر البحث");
+      const msg = err instanceof Error ? err.message : "تعذر البحث";
+      setError(msg);
+      pushToast({ title: msg, tone: "danger", osNotify: false });
       setOrders([]);
     } finally {
       setLoading(false);
@@ -76,9 +80,14 @@ export function PickupPage() {
     setBusyId(orderId);
     try {
       await shopApi.markCollected(token, orderId);
+      pushToast({ title: "تم تسليم الطلب", tone: "success", osNotify: false });
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "فشل التسليم");
+      pushToast({
+        title: err instanceof Error ? err.message : "فشل التسليم",
+        tone: "danger",
+        osNotify: false,
+      });
     } finally {
       setBusyId(null);
     }
@@ -90,9 +99,14 @@ export function PickupPage() {
     try {
       await shopApi.payInStore(token, orderId, "cash");
       await shopApi.markCollected(token, orderId);
+      pushToast({ title: "تم الدفع والتسليم", tone: "success", osNotify: false });
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "فشل الدفع/التسليم");
+      pushToast({
+        title: err instanceof Error ? err.message : "فشل الدفع/التسليم",
+        tone: "danger",
+        osNotify: false,
+      });
     } finally {
       setBusyId(null);
     }

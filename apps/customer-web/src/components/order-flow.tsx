@@ -326,7 +326,7 @@ export function OrderFlow({ store }: OrderFlowProps) {
                           <label key={fs.id} className={cn('payment-option', item.finishing_service_ids.includes(fs.id) && 'payment-option-active')}>
                             <input
                               type="checkbox"
-                              className="accent-primary"
+                              className="sr-only"
                               checked={item.finishing_service_ids.includes(fs.id)}
                               onChange={(e) => {
                                 const ids = e.target.checked
@@ -335,6 +335,19 @@ export function OrderFlow({ store }: OrderFlowProps) {
                                 updateItem(i, { finishing_service_ids: ids });
                               }}
                             />
+                            <span
+                              aria-hidden
+                              className={cn(
+                                'flex size-5 shrink-0 items-center justify-center rounded-md border transition-colors',
+                                item.finishing_service_ids.includes(fs.id)
+                                  ? 'border-primary bg-primary text-white'
+                                  : 'border-border bg-surface text-transparent',
+                              )}
+                            >
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                                <path d="M20 6 9 17l-5-5" />
+                              </svg>
+                            </span>
                             <span className="flex flex-1 items-center justify-between gap-2 text-sm font-medium">
                               <span>{fs.name_ar}</span>
                               <span className="text-xs text-text-muted tabular-nums">{formatOMR(fs.price_baisa)}</span>
@@ -371,12 +384,6 @@ export function OrderFlow({ store }: OrderFlowProps) {
                     <span>المجموع الفرعي</span>
                     <span>{formatOMR(quote.subtotal_baisa)}</span>
                   </div>
-                  {quote.tax_baisa > 0 && (
-                    <div className="summary-row summary-row-muted">
-                      <span>ضريبة القيمة المضافة</span>
-                      <span>{formatOMR(quote.tax_baisa)}</span>
-                    </div>
-                  )}
                   <div className="summary-row summary-total">
                     <span>الإجمالي</span>
                     <span className="text-primary">{quote.total_display}</span>

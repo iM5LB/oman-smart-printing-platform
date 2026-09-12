@@ -13,7 +13,7 @@ export class CustomerAuthGuard implements CanActivate {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const req = context.switchToHttp().getRequest<{
       headers: { authorization?: string };
-      customer?: { phone: string };
+      customer?: { phone: string; is_platform_admin: boolean };
     }>();
 
     const header = req.headers.authorization ?? '';

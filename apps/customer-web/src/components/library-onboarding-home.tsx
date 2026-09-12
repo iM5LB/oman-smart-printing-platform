@@ -16,6 +16,7 @@ import {
   LibraryMe,
   registerLibrary,
   setLibraryDeviceSecurity,
+  setLibraryOpeningHours,
   unlockLibrarySetup,
   updateLibraryStore,
   uploadLibraryLogo,
@@ -32,6 +33,11 @@ import {
 import { slugifyBrand } from '@/lib/slugs';
 import { cn } from '@/lib/utils';
 import { TibaaBrand } from '@/components/tibaa-brand';
+import {
+  defaultHours,
+  OpeningHoursEditor,
+  type HourRow,
+} from '@/components/opening-hours-editor';
 import type { PickedLocation } from '@/components/location-picker-map';
 
 const LocationPickerMap = dynamic(
@@ -42,13 +48,14 @@ const LocationPickerMap = dynamic(
   },
 );
 
-type Step = 'brand' | 'location' | 'device' | 'review';
+type Step = 'brand' | 'location' | 'device' | 'hours' | 'review';
 
 const STEPS: { id: Step; label: string; num: number }[] = [
   { id: 'brand', label: 'الهوية', num: 1 },
   { id: 'location', label: 'الموقع', num: 2 },
   { id: 'device', label: 'الجهاز', num: 3 },
-  { id: 'review', label: 'إنهاء', num: 4 },
+  { id: 'hours', label: 'الساعات', num: 4 },
+  { id: 'review', label: 'إنهاء', num: 5 },
 ];
 
 function SetupProgress({ step }: { step: Step }) {
@@ -131,6 +138,7 @@ export function LibraryOnboardingHome() {
     latitude: '' as string,
     longitude: '' as string,
   });
+  const [hours, setHours] = useState<HourRow[]>(() => defaultHours());
 
   function resetToUnlock() {
     clearLibraryToken();
@@ -197,7 +205,7 @@ export function LibraryOnboardingHome() {
           const next = data.onboarding.next_step;
           if (next === 'location') setStep('location');
           else if (next === 'device') setStep('device');
-          else if (next === 'review') setStep('review');
+          else if (next === 'review') setStep('hours');
           else setStep('brand');
           setBooting(false);
         })
@@ -341,9 +349,24 @@ export function LibraryOnboardingHome() {
     try {
       const res = await setLibraryDeviceSecurity(pass, String(fd.get('device_confirm_phone')));
       setMe((prev) => (prev ? { ...prev, store: res.store, onboarding: res.onboarding } : prev));
-      setStep('review');
+      setStep('hours');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'فشل الحفظ');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function saveHours(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+    try {
+      const res = await setLibraryOpeningHours(hours);
+      setMe((prev) => (prev ? { ...prev, store: res.store, onboarding: res.onboarding } : prev));
+      setStep('review');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'فشل حفظ الساعات');
     } finally {
       setLoading(false);
     }
@@ -431,7 +454,7 @@ export function LibraryOnboardingHome() {
             <TibaaBrand variant="icon" size="sm" className="shrink-0 !h-11 !w-11" />
             <div className="min-w-0 flex-1">
               <p className="setup-flow-kicker">
-                إعداد المكتبة · خطوة {stepMeta.num} من 4
+                إعداد المكتبة · خطوة {stepMeta.num} من {STEPS.length}
               </p>
               <h1 className="setup-flow-title truncate">
                 {me?.store.name || brandName || 'مكتبة جديدة'}
@@ -668,6 +691,19 @@ export function LibraryOnboardingHome() {
             </form>
           )}
 
+          {step === 'hours' && me && (
+            <form id="setup-form" className="setup-form" onSubmit={(e) => void saveHours(e)}>
+              <section className="setup-section">
+                <h2 className="setup-section-title">ساعات العمل</h2>
+                <p className="setup-section-sub">
+                  حدّد أوقات فتح وإغلاق مكتبتك — يمكن تعديلها لاحقاً من التطبيق
+                </p>
+                <OpeningHoursEditor value={hours} onChange={setHours} disabled={loading} />
+              </section>
+              <FieldError message={error} />
+            </form>
+          )}
+
           {step === 'review' && me && (
             <div className="setup-form">
               <section className="setup-section">
@@ -755,7 +791,8 @@ export function LibraryOnboardingHome() {
                 setError('');
                 if (step === 'location') setStep('brand');
                 else if (step === 'device') setStep('location');
-                else if (step === 'review') setStep('device');
+                else if (step === 'hours') setStep('device');
+                else if (step === 'review') setStep('hours');
               }}
             >
               رجوع

@@ -318,6 +318,66 @@ fn print_document(
     }
 }
 
+fn windows_reg_sz(value: &str) -> Option<String> {
+    let mut cmd = Command::new("reg");
+    cmd.args([
+        "query",
+        r"HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion",
+        "/v",
+        value,
+    ])
+    .stdout(Stdio::piped())
+    .stderr(Stdio::null());
+    #[cfg(windows)]
+    {
+        cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+    }
+    let output = cmd.output().ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let text = String::from_utf8_lossy(&output.stdout);
+    for line in text.lines() {
+        if !line.contains(value) {
+            continue;
+        }
+        let parts: Vec<&str> = line.split_whitespace().collect();
+        return parts.last().map(|s| s.to_string());
+    }
+    None
+}
+
+#[tauri::command]
+fn os_label() -> String {
+    #[cfg(windows)]
+    {
+        let build = windows_reg_sz("CurrentBuildNumber");
+        let display = windows_reg_sz("DisplayVersion")
+            .or_else(|| windows_reg_sz("ReleaseId"));
+        let build_n: u32 = build
+            .as_deref()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(0);
+        let name = if build_n >= 22000 {
+            "Windows 11"
+        } else if build_n >= 10240 {
+            "Windows 10"
+        } else {
+            "Windows"
+        };
+        match (display.as_deref(), build.as_deref()) {
+            (Some(d), Some(b)) if !d.is_empty() => format!("{name} {d} ({b})"),
+            (Some(d), _) if !d.is_empty() => format!("{name} {d}"),
+            (_, Some(b)) => format!("{name} ({b})"),
+            _ => name.to_string(),
+        }
+    }
+    #[cfg(not(windows))]
+    {
+        format!("{} {}", std::env::consts::OS, std::env::consts::ARCH)
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -333,7 +393,8 @@ pub fn run() {
             print_document,
             write_temp_file,
             save_export_file,
-            open_html_report
+            open_html_report,
+            os_label
         ])
         .setup(|app| {
             if let Some(window) = app.get_webview_window("main") {

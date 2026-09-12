@@ -3,14 +3,15 @@ import { listPrinters, printTest, type PrinterInfo } from "../lib/print";
 import { Badge, Button, EmptyState, Panel } from "../components/ui";
 import { Icons } from "../components/icons";
 import { CountPill, PageHeading } from "../components/PageHeading";
+import { useToast } from "../components/Toast";
 import { printerStatusAr, printerStatusTone } from "../lib/labels";
 
 export function PrintersPage() {
+  const { push: pushToast } = useToast();
   const [printers, setPrinters] = useState<PrinterInfo[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [toast, setToast] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -32,12 +33,19 @@ export function PrintersPage() {
 
   const onTest = async (printer: PrinterInfo) => {
     setBusyId(printer.id);
-    setToast(null);
     try {
       await printTest(printer.id);
-      setToast(`تم إرسال صفحة اختبار إلى ${printer.name}`);
+      pushToast({
+        title: `تم إرسال صفحة اختبار إلى ${printer.name}`,
+        tone: "success",
+        osNotify: false,
+      });
     } catch (e) {
-      setToast(e instanceof Error ? e.message : "فشلت طباعة الاختبار");
+      pushToast({
+        title: e instanceof Error ? e.message : "فشلت طباعة الاختبار",
+        tone: "danger",
+        osNotify: false,
+      });
     } finally {
       setBusyId(null);
     }
@@ -58,10 +66,6 @@ export function PrintersPage() {
           </>
         }
       />
-
-      {toast ? (
-        <Panel className="shrink-0 px-3 py-2 text-body text-text-secondary">{toast}</Panel>
-      ) : null}
 
       <div className="scroll-y min-h-0 flex-1">
         {loading ? (

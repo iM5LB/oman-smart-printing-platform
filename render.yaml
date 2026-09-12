@@ -73,6 +73,8 @@ services:
         value: "300"
       - key: LIBRARY_SETUP_PASSWORD
         sync: false
+      - key: PLATFORM_ADMIN_PHONES
+        sync: false
       - key: API_URL
         fromService:
           name: omsp-api

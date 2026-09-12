@@ -78,25 +78,28 @@ export class SmsService implements OnModuleInit {
   }
 
   async sendOtp(phone: string, code: string, purpose: SmsOtpPurpose): Promise<void> {
-    const text =
-      purpose === 'device_pairing'
-        ? `رمز ربط جهاز المكتبة: ${code} (صالح 5 دقائق)`
-        : `رمز الدخول لطباعة: ${code} (صالح 5 دقائق)`;
-
     const provider = this.getProvider();
 
     if (provider === 'mock') {
+      const text =
+        purpose === 'device_pairing'
+          ? `رمز ربط جهاز المكتبة: ${code} (صالح 5 دقائق)`
+          : `رمز الدخول لطباعة: ${code} (صالح 5 دقائق)`;
       console.log(`[otp mock] To ${phone}: ${text}`);
       return;
     }
 
     if (provider === 'baileys') {
-      const id = await this.baileys.sendText(phone, text);
+      const id = await this.baileys.sendOtp(phone, code, purpose);
       console.log(`[baileys] OTP sent purpose=${purpose} to ${phone} id=${id ?? 'n/a'}`);
       return;
     }
 
     if (provider === 'twilio') {
+      const text =
+        purpose === 'device_pairing'
+          ? `رمز ربط جهاز المكتبة: ${code} (صالح 5 دقائق)`
+          : `رمز الدخول لطباعة: ${code} (صالح 5 دقائق)`;
       const sid = await this.twilio.sendSms(phone, text);
       console.log(`[twilio] OTP sent purpose=${purpose} to ${phone} sid=${sid ?? 'n/a'}`);
       return;
@@ -110,6 +113,12 @@ export class SmsService implements OnModuleInit {
     phone: string,
     orderNumber: string,
     storeName: string,
+    extras?: {
+      storePhone?: string | null;
+      storeAddress?: string | null;
+      shopUrl?: string | null;
+      mapsUrl?: string | null;
+    },
   ): Promise<{ ok: boolean; skipped?: boolean; providerMessageId?: string }> {
     const text = `طلبك ${orderNumber} جاهز للاستلام — ${storeName}`;
     const provider = this.getProvider();
@@ -120,7 +129,14 @@ export class SmsService implements OnModuleInit {
     }
 
     if (provider === 'baileys') {
-      const id = await this.baileys.sendText(phone, text);
+      const id = await this.baileys.sendOrderReady(phone, {
+        orderNumber,
+        storeName,
+        storePhone: extras?.storePhone,
+        storeAddress: extras?.storeAddress,
+        shopUrl: extras?.shopUrl,
+        mapsUrl: extras?.mapsUrl,
+      });
       return { ok: true, providerMessageId: id };
     }
 

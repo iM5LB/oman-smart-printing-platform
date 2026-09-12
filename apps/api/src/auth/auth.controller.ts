@@ -53,6 +53,15 @@ export class AuthController {
     return this.auth.logout(token);
   }
 
+  @Get('auth/me')
+  @UseGuards(CustomerAuthGuard)
+  me(@Req() req: { customer: { phone: string; is_platform_admin: boolean } }) {
+    return {
+      phone: req.customer.phone,
+      is_platform_admin: req.customer.is_platform_admin,
+    };
+  }
+
   @Get('stores/:slug/my-orders')
   @UseGuards(CustomerAuthGuard)
   myOrders(

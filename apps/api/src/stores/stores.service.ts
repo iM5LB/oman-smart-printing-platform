@@ -172,19 +172,6 @@ export class StoresService {
       await this.db.finishingService.createMany({
         data: defaults.map((d) => ({ storeId, ...d, isActive: true })),
       });
-    } else {
-      // Reactivate inactive defaults so the web options reappear.
-      const inactiveDefaults = existing.filter(
-        (f) =>
-          !f.isActive &&
-          defaults.some((d) => d.nameAr === f.nameAr),
-      );
-      if (inactiveDefaults.length) {
-        await this.db.finishingService.updateMany({
-          where: { id: { in: inactiveDefaults.map((f) => f.id) } },
-          data: { isActive: true },
-        });
-      }
     }
 
     return this.db.finishingService.findMany({

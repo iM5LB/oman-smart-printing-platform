@@ -15,6 +15,7 @@ import {
   queuePriorityAr,
 } from "../lib/labels";
 import { StoreBrandMark } from "../components/StoreBrandMark";
+import { formatStoredOs, getOsLabel } from "../lib/os";
 
 const APP_VERSION = "v0.1.1";
 
@@ -105,11 +106,7 @@ function SectionTitle({
 }
 
 function shortOs(os: string | null | undefined) {
-  if (!os) return "—";
-  const win = os.match(/Windows NT ([\d.]+)/i);
-  if (win) return `Windows ${win[1]}`;
-  if (os.length > 28) return `${os.slice(0, 26)}…`;
-  return os;
+  return formatStoredOs(os);
 }
 
 export function LibraryInfoPage() {
@@ -118,6 +115,7 @@ export function LibraryInfoPage() {
   const [online, setOnline] = useState(true);
   const [busy, setBusy] = useState(false);
   const [shopQrOpen, setShopQrOpen] = useState(false);
+  const [osLabel, setOsLabel] = useState<string | null>(null);
 
   const store = me?.store;
   const device = me?.device;
@@ -152,6 +150,16 @@ export function LibraryInfoPage() {
       window.clearInterval(id);
     };
   }, [token]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void getOsLabel().then((label) => {
+      if (!cancelled) setOsLabel(label);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const refresh = async () => {
     if (!token) return;
@@ -408,14 +416,9 @@ export function LibraryInfoPage() {
               {device?.app_version ? `v${device.app_version}` : APP_VERSION}
             </Field>
             <Field label="نظام التشغيل" icon={Icons.settings({ size: 13 })}>
-              <span title={device?.os_version ?? undefined}>
-                {shortOs(device?.os_version)}
+              <span title={osLabel ?? device?.os_version ?? undefined}>
+                {osLabel ?? shortOs(device?.os_version)}
               </span>
-            </Field>
-            <Field label="الضريبة" icon={Icons.tag({ size: 13 })}>
-              {store?.tax_rate_bps != null
-                ? `${(store.tax_rate_bps / 100).toFixed(2)}%`
-                : "—"}
             </Field>
             {store?.order_number_prefix ? (
               <Field label="بادئة الطلب" icon={Icons.tag({ size: 13 })}>

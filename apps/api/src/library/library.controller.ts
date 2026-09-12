@@ -17,6 +17,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { Throttle } from '@nestjs/throttler';
 import type { Request } from 'express';
 import {
+  IsBoolean,
   IsEmail,
   IsNumber,
   IsOptional,
@@ -69,13 +70,63 @@ class RegisterDto {
 }
 
 class UpdatePricingRuleDto {
+  @IsOptional()
   @IsNumber()
-  price_per_page!: number;
+  price_per_page?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  is_active?: boolean;
 }
 
 class UpdateFinishingDto {
+  @IsOptional()
+  @IsNumber()
+  price_baisa?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  is_active?: boolean;
+
+  @IsOptional()
+  @IsString()
+  name_ar?: string;
+
+  @IsOptional()
+  @IsString()
+  description?: string | null;
+}
+
+class CreatePricingRuleDto {
+  @IsString()
+  paper_size!: string;
+
+  @IsString()
+  color_mode!: string;
+
+  @IsNumber()
+  price_per_page!: number;
+
+  @IsOptional()
+  @IsBoolean()
+  is_active?: boolean;
+}
+
+class CreateFinishingDto {
+  @IsString()
+  @MinLength(1)
+  name_ar!: string;
+
   @IsNumber()
   price_baisa!: number;
+
+  @IsOptional()
+  @IsString()
+  description?: string | null;
+
+  @IsOptional()
+  @IsBoolean()
+  is_active?: boolean;
 }
 
 interface LibraryOwnerRequest extends Request {
@@ -210,6 +261,25 @@ export class LibraryController {
     return this.library.setDeviceSecurity(token, dto!);
   }
 
+  @Put('store/hours')
+  setOpeningHours(
+    @Headers('authorization') authorization?: string,
+    @Body()
+    dto?: {
+      hours: Array<{
+        day_of_week: number;
+        open_time: string;
+        close_time: string;
+        is_closed: boolean;
+      }>;
+    },
+  ) {
+    const token = authorization?.startsWith('Bearer ')
+      ? authorization.slice(7).trim()
+      : undefined;
+    return this.library.setOpeningHours(token, dto?.hours ?? []);
+  }
+
   @Post('store/logo')
   @UseInterceptors(FileInterceptor('logo', { limits: { fileSize: 2 * 1024 * 1024 } }))
   uploadLogo(
@@ -301,6 +371,15 @@ export class LibraryController {
     return this.shop.getPricing(req[LIBRARY_OWNER_KEY].store.id);
   }
 
+  @Post('pricing/rules')
+  @UseGuards(LibraryAuthGuard)
+  createPricingRule(
+    @Req() req: LibraryOwnerRequest,
+    @Body() dto: CreatePricingRuleDto,
+  ) {
+    return this.shop.createPricingRule(req[LIBRARY_OWNER_KEY].store.id, dto);
+  }
+
   @Patch('pricing/rules/:ruleId')
   @UseGuards(LibraryAuthGuard)
   updatePricingRule(
@@ -311,8 +390,17 @@ export class LibraryController {
     return this.shop.updatePricingRule(
       req[LIBRARY_OWNER_KEY].store.id,
       ruleId,
-      dto.price_per_page,
+      dto,
     );
+  }
+
+  @Post('pricing/finishing')
+  @UseGuards(LibraryAuthGuard)
+  createFinishing(
+    @Req() req: LibraryOwnerRequest,
+    @Body() dto: CreateFinishingDto,
+  ) {
+    return this.shop.createFinishing(req[LIBRARY_OWNER_KEY].store.id, dto);
   }
 
   @Patch('pricing/finishing/:serviceId')
@@ -325,7 +413,7 @@ export class LibraryController {
     return this.shop.updateFinishing(
       req[LIBRARY_OWNER_KEY].store.id,
       serviceId,
-      dto.price_baisa,
+      dto,
     );
   }
 }

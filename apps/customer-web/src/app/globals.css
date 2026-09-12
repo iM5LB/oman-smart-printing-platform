@@ -740,6 +740,21 @@
   outline: none;
 }
 
+.phone-input-country-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem;
+  cursor: pointer;
+  text-align: start;
+}
+
+.phone-input-country-open,
+.phone-input-country-btn:focus-visible {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--color-primary) 15%, transparent);
+}
+
 .phone-input-country:focus {
   border-color: var(--color-primary);
   box-shadow: 0 0 0 2px color-mix(in oklab, var(--color-primary) 15%, transparent);
@@ -1704,6 +1719,9 @@ body.auth-open {
 .timeline-label-muted { color: var(--color-text-muted); font-weight: 500; }
 .timeline-label-failed { color: var(--color-error); font-weight: 600; }
 
+.store-footer-shell {
+  flex-shrink: 0;
+}
 .store-footer {
   flex-shrink: 0;
   padding: 0.4rem 1rem;

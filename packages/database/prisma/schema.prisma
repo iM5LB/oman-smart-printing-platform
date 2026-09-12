@@ -172,7 +172,7 @@ model Store {
   payAtPickupPrintPolicy   PayAtPickupPrintPolicy @default(require_approval) @map("pay_at_pickup_print_policy")
   fileRetentionPolicy      FileRetentionPolicy    @default(twenty_four_hours) @map("file_retention_policy")
   paidOrdersPriority       QueuePriority          @default(urgent) @map("paid_orders_priority")
-  taxRateBps               Int                    @default(0) @map("tax_rate_bps") // basis points, 500 = 5%
+  taxRateBps               Int                    @default(0) @map("tax_rate_bps") // unused; kept for DB compatibility
   devicePasswordHash       String?                @map("device_password_hash")
   deviceConfirmPhone       String?                @map("device_confirm_phone")
   onboardingCompletedAt    DateTime?              @map("onboarding_completed_at")

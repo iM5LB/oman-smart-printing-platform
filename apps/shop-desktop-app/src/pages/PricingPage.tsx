@@ -6,6 +6,8 @@ import {
   type PricingRule,
   type ShopPricing,
 } from "../lib/api";
+import { toUserMessage } from "../lib/errors";
+import { useToast } from "../components/Toast";
 import { Badge, Button, EmptyState, Input, Panel } from "../components/ui";
 import { Icons } from "../components/icons";
 import { PageHeading } from "../components/PageHeading";
@@ -16,9 +18,60 @@ function baisaToOmr(baisa: number) {
   return `${(baisa / 1000).toFixed(3)} ر.ع`;
 }
 
+function ActiveSwitch({
+  checked,
+  disabled,
+  onChange,
+}: {
+  checked: boolean;
+  disabled?: boolean;
+  onChange: (next: boolean) => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      disabled={disabled}
+      dir="rtl"
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onChange(!checked);
+      }}
+      className={`inline-flex shrink-0 items-center gap-2 rounded-full border px-1.5 py-1 transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+        checked
+          ? "border-success/40 bg-success/15"
+          : "border-border-default bg-bg-hover/80"
+      }`}
+      title={checked ? "ظاهر للعملاء — اضغط للإخفاء" : "مخفي عن العملاء — اضغط للإظهار"}
+    >
+      <span
+        className={`text-[11px] font-semibold ${
+          checked ? "text-success" : "text-text-muted"
+        }`}
+      >
+        {checked ? "ظاهر" : "مخفي"}
+      </span>
+      <span
+        dir="ltr"
+        className={`relative h-5 w-9 rounded-full transition-colors ${
+          checked ? "bg-success" : "bg-[#3a4558]"
+        }`}
+      >
+        <span
+          className={`absolute top-0.5 size-4 rounded-full bg-white shadow transition-transform ${
+            checked ? "left-4" : "left-0.5"
+          }`}
+        />
+      </span>
+    </button>
+  );
+}
+
 function PriceEditorCard({
   title,
-  subtitle,
+  active,
   icon,
   tone,
   display,
@@ -27,9 +80,10 @@ function PriceEditorCard({
   saving,
   onChange,
   onSave,
+  onToggleActive,
 }: {
   title: string;
-  subtitle?: string;
+  active: boolean;
   icon: ReactNode;
   tone: "primary" | "success" | "info" | "warning";
   display: string;
@@ -38,6 +92,7 @@ function PriceEditorCard({
   saving: boolean;
   onChange: (v: string) => void;
   onSave: () => void;
+  onToggleActive: (next: boolean) => void;
 }) {
   const toneBox = {
     primary: "bg-primary/15 text-primary",
@@ -50,27 +105,28 @@ function PriceEditorCard({
 
   return (
     <li
-      className={`grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 rounded-xl border px-3 py-2.5 transition-colors ${
-        dirty
-          ? "border-primary/40 bg-primary/5"
-          : "border-border-default bg-bg-elevated"
+      className={`grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-2 rounded-xl border px-3 py-2.5 transition-colors sm:grid-cols-[auto_minmax(0,1fr)_auto] ${
+        !active
+          ? "border-border-default/70 bg-bg-base/50"
+          : dirty
+            ? "border-primary/40 bg-primary/5"
+            : "border-border-default bg-bg-elevated"
       }`}
     >
       <div
-        className={`flex size-9 shrink-0 items-center justify-center rounded-full ${toneBox}`}
+        className={`flex size-9 shrink-0 items-center justify-center rounded-full ${toneBox} ${
+          active ? "" : "opacity-50"
+        }`}
       >
         {icon}
       </div>
 
-      <div className="min-w-0">
+      <div className={`min-w-0 ${active ? "" : "opacity-70"}`}>
         <div className="flex flex-wrap items-center gap-2">
           <p className="truncate text-body font-semibold text-text-primary">
             {title}
           </p>
           {dirty ? <Badge tone="info">معدّل</Badge> : null}
-          {subtitle ? (
-            <span className="text-meta text-text-muted">{subtitle}</span>
-          ) : null}
         </div>
         <p className="mt-0.5 truncate text-meta text-text-secondary">
           الحالي: <span className="font-medium text-text-primary">{display}</span>
@@ -78,7 +134,12 @@ function PriceEditorCard({
         </p>
       </div>
 
-      <div className="flex shrink-0 items-center gap-2">
+      <div className="col-span-2 flex flex-wrap items-center justify-end gap-2 sm:col-span-1">
+        <ActiveSwitch
+          checked={active}
+          disabled={saving}
+          onChange={onToggleActive}
+        />
         <Input
           dir="ltr"
           inputMode="numeric"
@@ -102,14 +163,17 @@ function PriceEditorCard({
 
 export function PricingPage() {
   const { token } = useAuth();
+  const { push: pushToast } = useToast();
   const [data, setData] = useState<ShopPricing | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
   const [draftRules, setDraftRules] = useState<Record<string, string>>({});
   const [draftFinish, setDraftFinish] = useState<Record<string, string>>({});
-  const [msg, setMsg] = useState<string | null>(null);
-  const [msgOk, setMsgOk] = useState(true);
+
+  const notify = (title: string, ok = true) => {
+    pushToast({ title, tone: ok ? "success" : "danger", osNotify: false });
+  };
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -124,7 +188,7 @@ export function PricingPage() {
       setDraftFinish(finish);
       setError(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "تعذر التحميل");
+      setError(toUserMessage(e, "تعذر التحميل"));
     } finally {
       setLoading(false);
     }
@@ -150,20 +214,51 @@ export function PricingPage() {
     if (!token) return;
     const value = Number(draftRules[rule.id]);
     if (!Number.isFinite(value) || value < 0) {
-      setMsgOk(false);
-      setMsg("أدخل سعراً صالحاً (بيسة)");
+      notify("أدخل سعراً صالحاً (بيسة)", false);
       return;
     }
     setSaving(rule.id);
-    setMsg(null);
     try {
-      await shopApi.updatePricingRule(token, rule.id, Math.round(value));
-      setMsgOk(true);
-      setMsg("تم حفظ قاعدة التسعير");
+      await shopApi.updatePricingRule(token, rule.id, {
+        price_per_page: Math.round(value),
+      });
+      notify("تم حفظ قاعدة التسعير");
       await load();
     } catch (e) {
-      setMsgOk(false);
-      setMsg(e instanceof Error ? e.message : "فشل الحفظ");
+      notify(toUserMessage(e, "فشل الحفظ"), false);
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  const toggleRule = async (rule: PricingRule, next: boolean) => {
+    if (!token) return;
+    setSaving(`toggle-rule-${rule.id}`);
+    setData((prev) =>
+      prev
+        ? {
+            ...prev,
+            rules: prev.rules.map((r) =>
+              r.id === rule.id ? { ...r, is_active: next } : r,
+            ),
+          }
+        : prev,
+    );
+    try {
+      await shopApi.updatePricingRule(token, rule.id, { is_active: next });
+      notify(next ? "ظاهر للعملاء" : "مخفي عن العملاء");
+    } catch (e) {
+      setData((prev) =>
+        prev
+          ? {
+              ...prev,
+              rules: prev.rules.map((r) =>
+                r.id === rule.id ? { ...r, is_active: rule.is_active } : r,
+              ),
+            }
+          : prev,
+      );
+      notify(toUserMessage(e, "فشل التحديث"), false);
     } finally {
       setSaving(null);
     }
@@ -173,20 +268,51 @@ export function PricingPage() {
     if (!token) return;
     const value = Number(draftFinish[svc.id]);
     if (!Number.isFinite(value) || value < 0) {
-      setMsgOk(false);
-      setMsg("أدخل سعراً صالحاً (بيسة)");
+      notify("أدخل سعراً صالحاً (بيسة)", false);
       return;
     }
     setSaving(svc.id);
-    setMsg(null);
     try {
-      await shopApi.updateFinishing(token, svc.id, Math.round(value));
-      setMsgOk(true);
-      setMsg("تم حفظ خدمة التجهيز");
+      await shopApi.updateFinishing(token, svc.id, {
+        price_baisa: Math.round(value),
+      });
+      notify("تم حفظ خدمة التجهيز");
       await load();
     } catch (e) {
-      setMsgOk(false);
-      setMsg(e instanceof Error ? e.message : "فشل الحفظ");
+      notify(toUserMessage(e, "فشل الحفظ"), false);
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  const toggleFinish = async (svc: FinishingService, next: boolean) => {
+    if (!token) return;
+    setSaving(`toggle-finish-${svc.id}`);
+    setData((prev) =>
+      prev
+        ? {
+            ...prev,
+            finishing: prev.finishing.map((f) =>
+              f.id === svc.id ? { ...f, is_active: next } : f,
+            ),
+          }
+        : prev,
+    );
+    try {
+      await shopApi.updateFinishing(token, svc.id, { is_active: next });
+      notify(next ? "ظاهر للعملاء" : "مخفي عن العملاء");
+    } catch (e) {
+      setData((prev) =>
+        prev
+          ? {
+              ...prev,
+              finishing: prev.finishing.map((f) =>
+                f.id === svc.id ? { ...f, is_active: svc.is_active } : f,
+              ),
+            }
+          : prev,
+      );
+      notify(toUserMessage(e, "فشل التحديث"), false);
     } finally {
       setSaving(null);
     }
@@ -200,7 +326,7 @@ export function PricingPage() {
       <PageHeading
         icon={Icons.pricing({ size: 22 })}
         title="الأسعار"
-        description="سعر الصفحة وخدمات التجهيز — الإدخال بالبيسة (1000 = 1 ر.ع)"
+        description="خيارات الطباعة والتجهيز جاهزة تلقائياً — عدّل السعر أو أخفِ ما لا تقدمه (بالبيسة)"
         actions={
           <>
             {dirtyCount > 0 ? (
@@ -216,18 +342,6 @@ export function PricingPage() {
         }
       />
 
-      {msg ? (
-        <div
-          className={`shrink-0 rounded-xl border px-3.5 py-2.5 text-meta ${
-            msgOk
-              ? "border-success/25 bg-success/10 text-success"
-              : "border-danger/25 bg-danger/10 text-danger"
-          }`}
-        >
-          {msg}
-        </div>
-      ) : null}
-
       <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-2">
         <Panel className="flex min-h-0 flex-col overflow-hidden">
           <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border-default px-3.5 py-3">
@@ -237,13 +351,13 @@ export function PricingPage() {
               </div>
               <div>
                 <h2 className="text-section">سعر الصفحة</h2>
-                <p className="text-caption text-text-muted">حسب المقاس واللون</p>
+                <p className="text-caption text-text-muted">A4 · A3 · A5 × أبيض وأسود / ملون / رمادي</p>
               </div>
             </div>
             <Badge tone="info">{data?.rules.length ?? 0}</Badge>
           </div>
 
-          <div className="scroll-y min-h-0 flex-1 p-3">
+          <div className="scroll-y min-h-0 flex-1 space-y-3 p-3">
             {(data?.rules ?? []).length === 0 ? (
               <EmptyState title="لا توجد قواعد تسعير" />
             ) : (
@@ -255,7 +369,7 @@ export function PricingPage() {
                     <PriceEditorCard
                       key={r.id}
                       title={`${r.paper_size} · ${colorModeAr(r.color_mode)}`}
-                      subtitle={r.is_active ? "نشط" : "غير نشط"}
+                      active={r.is_active}
                       icon={
                         r.color_mode === "color"
                           ? Icons.color({ size: 16 })
@@ -265,11 +379,14 @@ export function PricingPage() {
                       display={`${r.price_display} / صفحة`}
                       draft={draft}
                       dirty={dirty}
-                      saving={saving === r.id}
+                      saving={
+                        saving === r.id || saving === `toggle-rule-${r.id}`
+                      }
                       onChange={(v) =>
                         setDraftRules((d) => ({ ...d, [r.id]: v }))
                       }
                       onSave={() => void saveRule(r)}
+                      onToggleActive={(next) => void toggleRule(r, next)}
                     />
                   );
                 })}
@@ -286,13 +403,13 @@ export function PricingPage() {
               </div>
               <div>
                 <h2 className="text-section">خدمات التجهيز</h2>
-                <p className="text-caption text-text-muted">تدبيس وتغليف وغيرها</p>
+                <p className="text-caption text-text-muted">تدبيس · تجليد · تغليف · ثقب</p>
               </div>
             </div>
             <Badge tone="success">{data?.finishing.length ?? 0}</Badge>
           </div>
 
-          <div className="scroll-y min-h-0 flex-1 p-3">
+          <div className="scroll-y min-h-0 flex-1 space-y-3 p-3">
             {(data?.finishing ?? []).length === 0 ? (
               <EmptyState title="لا توجد خدمات" />
             ) : (
@@ -304,17 +421,20 @@ export function PricingPage() {
                     <PriceEditorCard
                       key={f.id}
                       title={f.name_ar}
-                      subtitle={f.is_active ? "نشط" : "غير نشط"}
+                      active={f.is_active}
                       icon={Icons.staple({ size: 16 })}
                       tone="success"
                       display={f.price_display}
                       draft={draft}
                       dirty={dirty}
-                      saving={saving === f.id}
+                      saving={
+                        saving === f.id || saving === `toggle-finish-${f.id}`
+                      }
                       onChange={(v) =>
                         setDraftFinish((d) => ({ ...d, [f.id]: v }))
                       }
                       onSave={() => void saveFinish(f)}
+                      onToggleActive={(next) => void toggleFinish(f, next)}
                     />
                   );
                 })}

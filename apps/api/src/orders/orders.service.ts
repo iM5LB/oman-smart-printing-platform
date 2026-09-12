@@ -10,7 +10,6 @@ import {
 } from '@omsp/database';
 import {
   calculateItemPrice,
-  calculateTax,
   countPagesInRange,
   formatOMR,
   generateTrackingToken,
@@ -302,7 +301,6 @@ export class OrdersService {
   private async calculateOrderTotals(
     store: {
       id: string;
-      taxRateBps: number;
       pricingRules: Array<{ paperSize: string; colorMode: string; pricePerPage: number }>;
       finishingServices: Array<{ id: string; priceBaisa: number; nameAr: string }>;
     },
@@ -366,15 +364,13 @@ export class OrdersService {
     });
 
     const subtotalBaisa = pricedItems.reduce((s, i) => s + i.amount_baisa, 0);
-    const taxBaisa = calculateTax(subtotalBaisa, store.taxRateBps);
-    const totalBaisa = subtotalBaisa + taxBaisa;
 
     return {
       items: pricedItems,
       subtotal_baisa: subtotalBaisa,
-      tax_baisa: taxBaisa,
-      total_baisa: totalBaisa,
-      total_display: formatOMR(totalBaisa),
+      tax_baisa: 0,
+      total_baisa: subtotalBaisa,
+      total_display: formatOMR(subtotalBaisa),
     };
   }
 }

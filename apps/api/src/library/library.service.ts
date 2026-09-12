@@ -149,6 +149,14 @@ export class LibraryService {
                       { paperSize: 'A5', colorMode: 'grayscale', pricePerPage: 12 },
                     ],
                   },
+                  finishingServices: {
+                    create: [
+                      { nameAr: 'تدبيس', priceBaisa: 100, sortOrder: 1, isActive: true },
+                      { nameAr: 'تجليد', priceBaisa: 500, sortOrder: 2, isActive: true },
+                      { nameAr: 'تغليف حراري', priceBaisa: 300, sortOrder: 3, isActive: true },
+                      { nameAr: 'ثقب', priceBaisa: 50, sortOrder: 4, isActive: true },
+                    ],
+                  },
                 },
               },
             },
@@ -410,6 +418,65 @@ export class LibraryService {
       store: this.mapStore(mapped),
       onboarding: this.onboardingStatus(mapped),
       message: 'تم حفظ كلمة مرور الجهاز ورقم التأكيد',
+    };
+  }
+
+  async setOpeningHours(
+    token: string | undefined,
+    hours: Array<{
+      day_of_week: number;
+      open_time: string;
+      close_time: string;
+      is_closed: boolean;
+    }>,
+  ) {
+    const { store } = await this.resolveSession(token);
+    const timeRe = /^([01]\d|2[0-3]):[0-5]\d$/;
+    if (!Array.isArray(hours) || hours.length !== 7) {
+      throw new BadRequestException('يجب تحديد ساعات الأيام السبعة');
+    }
+    const seen = new Set<number>();
+    for (const h of hours) {
+      if (h.day_of_week < 0 || h.day_of_week > 6 || seen.has(h.day_of_week)) {
+        throw new BadRequestException('أيام الأسبوع غير صالحة');
+      }
+      seen.add(h.day_of_week);
+      if (!h.is_closed && (!timeRe.test(h.open_time) || !timeRe.test(h.close_time))) {
+        throw new BadRequestException('صيغة الوقت يجب أن تكون HH:MM');
+      }
+    }
+
+    await this.db.$transaction(
+      hours.map((h) =>
+        this.db.storeOpeningHours.upsert({
+          where: {
+            storeId_dayOfWeek: { storeId: store.id, dayOfWeek: h.day_of_week },
+          },
+          create: {
+            storeId: store.id,
+            dayOfWeek: h.day_of_week,
+            openTime: h.is_closed ? '00:00' : h.open_time,
+            closeTime: h.is_closed ? '00:00' : h.close_time,
+            isClosed: h.is_closed,
+          },
+          update: {
+            openTime: h.is_closed ? '00:00' : h.open_time,
+            closeTime: h.is_closed ? '00:00' : h.close_time,
+            isClosed: h.is_closed,
+          },
+        }),
+      ),
+    );
+
+    const refreshed = await this.db.store.findUniqueOrThrow({
+      where: { id: store.id },
+      select: STORE_OWNER_SELECT,
+    });
+    const next = this.withStoreDefaults(refreshed);
+    return {
+      store: this.mapStore(next),
+      onboarding: this.onboardingStatus(next),
+      opening_hours: hours,
     };
   }
 

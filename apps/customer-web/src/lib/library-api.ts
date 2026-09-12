@@ -148,17 +148,52 @@ export async function fetchLibraryPricing() {
   );
 }
 
-export async function updateLibraryPricingRule(ruleId: string, price_per_page: number) {
+export async function updateLibraryPricingRule(
+  ruleId: string,
+  body: { price_per_page?: number; is_active?: boolean },
+) {
   return libraryFetch<PricingRule>(`/library/pricing/rules/${ruleId}`, {
     method: 'PATCH',
-    body: JSON.stringify({ price_per_page }),
+    body: JSON.stringify(body),
   });
 }
 
-export async function updateLibraryFinishing(serviceId: string, price_baisa: number) {
+export async function createLibraryPricingRule(body: {
+  paper_size: string;
+  color_mode: string;
+  price_per_page: number;
+  is_active?: boolean;
+}) {
+  return libraryFetch<PricingRule>('/library/pricing/rules', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function updateLibraryFinishing(
+  serviceId: string,
+  body: {
+    price_baisa?: number;
+    is_active?: boolean;
+    name_ar?: string;
+    description?: string | null;
+  },
+) {
   return libraryFetch<FinishingService>(`/library/pricing/finishing/${serviceId}`, {
     method: 'PATCH',
-    body: JSON.stringify({ price_baisa }),
+    body: JSON.stringify(body),
+  });
+}
+
+export async function createLibraryFinishing(body: {
+  name_ar: string;
+  price_baisa: number;
+  description?: string | null;
+  is_active?: boolean;
+}) {
+  return libraryFetch<FinishingService>('/library/pricing/finishing', {
+    method: 'POST',
+    body: JSON.stringify(body),
   });
 }
 
@@ -207,6 +242,23 @@ export async function setLibraryDeviceSecurity(device_password: string, device_c
     {
       method: 'PUT',
       body: JSON.stringify({ device_password, device_confirm_phone }),
+    },
+  );
+}
+
+export async function setLibraryOpeningHours(
+  hours: Array<{
+    day_of_week: number;
+    open_time: string;
+    close_time: string;
+    is_closed: boolean;
+  }>,
+) {
+  return libraryFetch<{ store: LibraryStore; onboarding: OnboardingStatus }>(
+    '/library/store/hours',
+    {
+      method: 'PUT',
+      body: JSON.stringify({ hours }),
     },
   );
 }

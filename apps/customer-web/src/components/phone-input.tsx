@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   DEFAULT_PHONE_COUNTRY,
   PHONE_COUNTRIES,
@@ -34,6 +35,141 @@ export interface PhoneInputProps {
 
 function initialParts(seed: string | undefined) {
   return parsePhoneParts(seed ?? '', DEFAULT_PHONE_COUNTRY);
+}
+
+function CountrySelect({
+  id,
+  country,
+  callingCode,
+  disabled,
+  onChange,
+  onBlur,
+}: {
+  id: string;
+  country: PhoneCountryCode;
+  callingCode: string;
+  disabled?: boolean;
+  onChange: (next: PhoneCountryCode) => void;
+  onBlur?: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const popRef = useRef<HTMLDivElement>(null);
+  const activeRef = useRef<HTMLButtonElement>(null);
+  const [pos, setPos] = useState({ top: 0, left: 0, width: 220 });
+  const current = PHONE_COUNTRIES.find((c) => c.code === country);
+  const label = current ? `${current.nameAr} +${current.callingCode}` : `+${callingCode}`;
+
+  const place = () => {
+    const rect = triggerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const width = Math.max(rect.width, 220);
+    const height = 280;
+    const padEdge = 8;
+    let top = rect.bottom + 6;
+    if (top + height > window.innerHeight - padEdge) {
+      top = Math.max(padEdge, rect.top - height - 6);
+    }
+    let left = rect.left;
+    if (left + width > window.innerWidth - padEdge) {
+      left = window.innerWidth - width - padEdge;
+    }
+    if (left < padEdge) left = padEdge;
+    setPos({ top, left, width });
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    place();
+    activeRef.current?.scrollIntoView({ block: 'nearest' });
+    const onReposition = () => place();
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (triggerRef.current?.contains(t) || popRef.current?.contains(t)) return;
+      setOpen(false);
+      onBlur?.();
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    window.addEventListener('resize', onReposition);
+    window.addEventListener('scroll', onReposition, true);
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('resize', onReposition);
+      window.removeEventListener('scroll', onReposition, true);
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open, onBlur]);
+
+  const extras = !isCuratedPhoneCountry(country)
+    ? [{ code: country, callingCode, nameAr: `+${callingCode}`, nameEn: country }]
+    : [];
+
+  return (
+    <>
+      <button
+        ref={triggerRef}
+        id={id}
+        type="button"
+        disabled={disabled}
+        aria-label="دولة رقم الهاتف"
+        aria-expanded={open}
+        aria-haspopup="listbox"
+        onClick={() => !disabled && setOpen((v) => !v)}
+        className={cn(
+          'phone-input-country phone-input-country-btn',
+          open && 'phone-input-country-open',
+        )}
+      >
+        <span className="min-w-0 truncate">{label}</span>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`shrink-0 text-text-muted transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden>
+          <path d="m6 9 6 6 6-6" />
+        </svg>
+      </button>
+      {open
+        ? createPortal(
+            <div
+              ref={popRef}
+              role="listbox"
+              aria-label="دولة رقم الهاتف"
+              className="fixed z-[80] max-h-72 overflow-auto rounded-2xl border border-border bg-surface p-1 shadow-xl shadow-primary/10"
+              style={{ top: pos.top, left: pos.left, width: pos.width }}
+            >
+              {[...extras, ...PHONE_COUNTRIES].map((c) => {
+                const active = c.code === country;
+                return (
+                  <button
+                    key={c.code}
+                    ref={active ? activeRef : undefined}
+                    type="button"
+                    role="option"
+                    aria-selected={active}
+                    onClick={() => {
+                      onChange(c.code);
+                      setOpen(false);
+                    }}
+                    className={`flex w-full items-center justify-between gap-2 rounded-xl px-3 py-2 text-sm transition-colors ${
+                      active
+                        ? 'bg-primary/10 text-text'
+                        : 'text-text hover:bg-primary/[0.06]'
+                    }`}
+                  >
+                    <span>{c.nameAr}</span>
+                    <span className="tabular-nums text-text-muted" dir="ltr">
+                      +{c.callingCode}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>,
+            document.body,
+          )
+        : null}
+    </>
+  );
 }
 
 /**
@@ -147,27 +283,17 @@ export function PhoneInput({
         <label className="sr-only" htmlFor={`${fieldId}-country`}>
           الدولة
         </label>
-        <select
+        <CountrySelect
           id={`${fieldId}-country`}
-          className="phone-input-country"
-          value={country}
+          country={country}
+          callingCode={callingCode}
           disabled={disabled}
-          aria-label="دولة رقم الهاتف"
-          onChange={(e) => handleCountryChange(e.target.value as PhoneCountryCode)}
+          onChange={handleCountryChange}
           onBlur={() => {
             setTouched(true);
             onBlur?.();
           }}
-        >
-          {!isCuratedPhoneCountry(country) ? (
-            <option value={country}>+{callingCode}</option>
-          ) : null}
-          {PHONE_COUNTRIES.map((c) => (
-            <option key={c.code} value={c.code}>
-              {c.nameAr} (+{c.callingCode})
-            </option>
-          ))}
-        </select>
+        />
         <div className="phone-input-national-wrap">
           <span className="phone-input-prefix" aria-hidden>
             +{callingCode}

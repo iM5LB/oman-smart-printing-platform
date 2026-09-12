@@ -106,7 +106,6 @@ export class ShopService {
         pay_at_pickup_print_policy: store.payAtPickupPrintPolicy,
         file_retention_policy: store.fileRetentionPolicy,
         paid_orders_priority: store.paidOrdersPriority,
-        tax_rate_bps: store.taxRateBps,
         device_confirm_phone: store.deviceConfirmPhone,
         has_device_password: !!store.devicePasswordHash,
         onboarding_completed_at: store.onboardingCompletedAt?.toISOString() ?? null,
@@ -271,18 +270,62 @@ export class ShopService {
   }
 
   async getPricing(storeId: string) {
+    const defaultRules: Array<{
+      paperSize: 'A4' | 'A3' | 'A5';
+      colorMode: 'bw' | 'color' | 'grayscale';
+      pricePerPage: number;
+    }> = [
+      { paperSize: 'A4', colorMode: 'bw', pricePerPage: 20 },
+      { paperSize: 'A4', colorMode: 'color', pricePerPage: 100 },
+      { paperSize: 'A4', colorMode: 'grayscale', pricePerPage: 15 },
+      { paperSize: 'A3', colorMode: 'bw', pricePerPage: 50 },
+      { paperSize: 'A3', colorMode: 'color', pricePerPage: 200 },
+      { paperSize: 'A3', colorMode: 'grayscale', pricePerPage: 40 },
+      { paperSize: 'A5', colorMode: 'bw', pricePerPage: 15 },
+      { paperSize: 'A5', colorMode: 'color', pricePerPage: 80 },
+      { paperSize: 'A5', colorMode: 'grayscale', pricePerPage: 12 },
+    ];
+
+    const existingRules = await this.db.pricingRule.findMany({ where: { storeId } });
+    const have = new Set(existingRules.map((r) => `${r.paperSize}:${r.colorMode}`));
+    const missingRules = defaultRules.filter(
+      (d) => !have.has(`${d.paperSize}:${d.colorMode}`),
+    );
+    if (missingRules.length) {
+      await this.db.pricingRule.createMany({
+        data: missingRules.map((d) => ({
+          storeId,
+          paperSize: d.paperSize,
+          colorMode: d.colorMode,
+          pricePerPage: d.pricePerPage,
+          isActive: true,
+        })),
+        skipDuplicates: true,
+      });
+    }
+
+    const defaultFinishing: Array<{ nameAr: string; priceBaisa: number; sortOrder: number }> = [
+      { nameAr: 'تدبيس', priceBaisa: 100, sortOrder: 1 },
+      { nameAr: 'تجليد', priceBaisa: 500, sortOrder: 2 },
+      { nameAr: 'تغليف حراري', priceBaisa: 300, sortOrder: 3 },
+      { nameAr: 'ثقب', priceBaisa: 50, sortOrder: 4 },
+    ];
+
     let finishing = await this.db.finishingService.findMany({
       where: { storeId },
       orderBy: { sortOrder: 'asc' },
     });
-
-    if (finishing.length === 0) {
+    const haveFinish = new Set(finishing.map((f) => f.nameAr.trim()));
+    const missingFinish = defaultFinishing.filter((d) => !haveFinish.has(d.nameAr));
+    if (missingFinish.length) {
       await this.db.finishingService.createMany({
-        data: [
-          { storeId, nameAr: 'تدبيس', priceBaisa: 100, sortOrder: 1, isActive: true },
-          { storeId, nameAr: 'تجليد', priceBaisa: 500, sortOrder: 2, isActive: true },
-          { storeId, nameAr: 'تغليف حراري', priceBaisa: 300, sortOrder: 3, isActive: true },
-        ],
+        data: missingFinish.map((d) => ({
+          storeId,
+          nameAr: d.nameAr,
+          priceBaisa: d.priceBaisa,
+          sortOrder: d.sortOrder,
+          isActive: true,
+        })),
       });
       finishing = await this.db.finishingService.findMany({
         where: { storeId },
@@ -292,7 +335,7 @@ export class ShopService {
 
     const rules = await this.db.pricingRule.findMany({
       where: { storeId },
-      orderBy: { paperSize: 'asc' },
+      orderBy: [{ paperSize: 'asc' }, { colorMode: 'asc' }],
     });
 
     return {
@@ -315,16 +358,35 @@ export class ShopService {
     };
   }
 
-  async updatePricingRule(storeId: string, ruleId: string, pricePerPage: number) {
-    if (!Number.isFinite(pricePerPage) || pricePerPage < 0) {
-      throw new BadRequestException('سعر غير صالح');
-    }
+  async updatePricingRule(
+    storeId: string,
+    ruleId: string,
+    body: { price_per_page?: number | null; is_active?: boolean | string | number },
+  ) {
     const rule = await this.db.pricingRule.findFirst({ where: { id: ruleId, storeId } });
     if (!rule) throw new NotFoundException('قاعدة التسعير غير موجودة');
 
+    const data: { pricePerPage?: number; isActive?: boolean } = {};
+
+    if (body.price_per_page !== undefined && body.price_per_page !== null) {
+      const price = Number(body.price_per_page);
+      if (!Number.isFinite(price) || price < 0) {
+        throw new BadRequestException('سعر غير صالح');
+      }
+      data.pricePerPage = Math.round(price);
+    }
+
+    if (body.is_active !== undefined && body.is_active !== null) {
+      data.isActive = parseBoolFlag(body.is_active);
+    }
+
+    if (Object.keys(data).length === 0) {
+      throw new BadRequestException('لا توجد بيانات للتحديث');
+    }
+
     const updated = await this.db.pricingRule.update({
       where: { id: ruleId },
-      data: { pricePerPage: Math.round(pricePerPage) },
+      data,
     });
 
     return {
@@ -333,26 +395,154 @@ export class ShopService {
       color_mode: updated.colorMode,
       price_per_page: updated.pricePerPage,
       price_display: formatOMR(updated.pricePerPage),
+      is_active: updated.isActive,
     };
   }
 
-  async updateFinishing(storeId: string, serviceId: string, priceBaisa: number) {
-    if (!Number.isFinite(priceBaisa) || priceBaisa < 0) {
+  async createPricingRule(
+    storeId: string,
+    body: {
+      paper_size: string;
+      color_mode: string;
+      price_per_page: number;
+      is_active?: boolean;
+    },
+  ) {
+    const paperSize = body.paper_size as PaperSize;
+    const colorMode = body.color_mode as ColorMode;
+    if (!Object.values(PaperSize).includes(paperSize)) {
+      throw new BadRequestException('مقاس الورق غير صالح');
+    }
+    if (!Object.values(ColorMode).includes(colorMode)) {
+      throw new BadRequestException('وضع اللون غير صالح');
+    }
+    if (!Number.isFinite(body.price_per_page) || body.price_per_page < 0) {
       throw new BadRequestException('سعر غير صالح');
     }
-    const svc = await this.db.finishingService.findFirst({ where: { id: serviceId, storeId } });
+
+    const pricePerPage = Math.round(body.price_per_page);
+    const isActive = body.is_active !== undefined ? Boolean(body.is_active) : true;
+
+    const existing = await this.db.pricingRule.findFirst({
+      where: { storeId, paperSize, colorMode },
+    });
+
+    const updated = existing
+      ? await this.db.pricingRule.update({
+          where: { id: existing.id },
+          data: { pricePerPage, isActive: true },
+        })
+      : await this.db.pricingRule.create({
+          data: { storeId, paperSize, colorMode, pricePerPage, isActive },
+        });
+
+    return {
+      id: updated.id,
+      paper_size: updated.paperSize,
+      color_mode: updated.colorMode,
+      price_per_page: updated.pricePerPage,
+      price_display: formatOMR(updated.pricePerPage),
+      is_active: updated.isActive,
+    };
+  }
+
+  async updateFinishing(
+    storeId: string,
+    serviceId: string,
+    body: {
+      price_baisa?: number | null;
+      is_active?: boolean | string | number | null;
+      name_ar?: string;
+      description?: string | null;
+    },
+  ) {
+    const svc = await this.db.finishingService.findFirst({
+      where: { id: serviceId, storeId },
+    });
     if (!svc) throw new NotFoundException('خدمة التجهيز غير موجودة');
+
+    const data: {
+      priceBaisa?: number;
+      isActive?: boolean;
+      nameAr?: string;
+      description?: string | null;
+    } = {};
+
+    if (body.price_baisa !== undefined && body.price_baisa !== null) {
+      const price = Number(body.price_baisa);
+      if (!Number.isFinite(price) || price < 0) {
+        throw new BadRequestException('سعر غير صالح');
+      }
+      data.priceBaisa = Math.round(price);
+    }
+    if (body.is_active !== undefined && body.is_active !== null) {
+      data.isActive = parseBoolFlag(body.is_active);
+    }
+    if (body.name_ar !== undefined) {
+      const name = body.name_ar.trim();
+      if (!name) throw new BadRequestException('اسم الخدمة مطلوب');
+      data.nameAr = name;
+    }
+    if (body.description !== undefined) {
+      data.description = body.description?.trim() || null;
+    }
+    if (Object.keys(data).length === 0) {
+      throw new BadRequestException('لا توجد بيانات للتحديث');
+    }
 
     const updated = await this.db.finishingService.update({
       where: { id: serviceId },
-      data: { priceBaisa: Math.round(priceBaisa) },
+      data,
     });
 
     return {
       id: updated.id,
       name_ar: updated.nameAr,
+      description: updated.description,
       price_baisa: updated.priceBaisa,
       price_display: formatOMR(updated.priceBaisa),
+      is_active: updated.isActive,
+    };
+  }
+
+  async createFinishing(
+    storeId: string,
+    body: {
+      name_ar: string;
+      price_baisa: number;
+      description?: string | null;
+      is_active?: boolean;
+    },
+  ) {
+    const nameAr = (body.name_ar ?? '').trim();
+    if (!nameAr) throw new BadRequestException('اسم الخدمة مطلوب');
+    if (!Number.isFinite(body.price_baisa) || body.price_baisa < 0) {
+      throw new BadRequestException('سعر غير صالح');
+    }
+
+    const maxSort = await this.db.finishingService.aggregate({
+      where: { storeId },
+      _max: { sortOrder: true },
+    });
+
+    const created = await this.db.finishingService.create({
+      data: {
+        storeId,
+        nameAr,
+        description: body.description?.trim() || null,
+        priceBaisa: Math.round(body.price_baisa),
+        isActive: body.is_active !== undefined ? Boolean(body.is_active) : true,
+        sortOrder: (maxSort._max.sortOrder ?? 0) + 1,
+      },
+    });
+
+    return {
+      id: created.id,
+      name_ar: created.nameAr,
+      description: created.description,
+      price_baisa: created.priceBaisa,
+      price_display: formatOMR(created.priceBaisa),
+      is_active: created.isActive,
     };
   }
 
@@ -598,7 +788,14 @@ export class ShopService {
       pay_at_pickup_print_policy?: string;
       file_retention_policy?: string;
       paid_orders_priority?: string;
-      tax_rate_bps?: number;
+      order_number_prefix?: string;
+      is_active?: boolean;
+      opening_hours?: Array<{
+        day_of_week: number;
+        open_time: string;
+        close_time: string;
+        is_closed: boolean;
+      }>;
     },
   ) {
     const data: Record<string, unknown> = {};
@@ -614,8 +811,20 @@ export class ShopService {
     if (body.wilayat !== undefined) data.wilayat = body.wilayat?.trim() || null;
     if (body.area !== undefined) data.area = body.area?.trim() || null;
     if (body.address !== undefined) data.address = body.address?.trim() || null;
-    if (body.latitude !== undefined) data.latitude = body.latitude;
-    if (body.longitude !== undefined) data.longitude = body.longitude;
+    if (body.latitude !== undefined) {
+      const lat = body.latitude;
+      if (lat !== null && (!Number.isFinite(lat) || lat < -90 || lat > 90)) {
+        throw new BadRequestException('خط العرض غير صالح');
+      }
+      data.latitude = lat;
+    }
+    if (body.longitude !== undefined) {
+      const lng = body.longitude;
+      if (lng !== null && (!Number.isFinite(lng) || lng < -180 || lng > 180)) {
+        throw new BadRequestException('خط الطول غير صالح');
+      }
+      data.longitude = lng;
+    }
 
     if (body.auto_print_paid_orders !== undefined) {
       data.autoPrintPaidOrders = Boolean(body.auto_print_paid_orders);
@@ -655,26 +864,89 @@ export class ShopService {
       data.paidOrdersPriority = body.paid_orders_priority;
     }
 
-    if (body.tax_rate_bps !== undefined) {
-      const tax = Math.round(Number(body.tax_rate_bps));
-      if (!Number.isFinite(tax) || tax < 0 || tax > 10000) {
-        throw new BadRequestException('نسبة الضريبة غير صالحة');
-      }
-      data.taxRateBps = tax;
+    if (body.order_number_prefix !== undefined) {
+      const prefix = body.order_number_prefix.trim().slice(0, 8);
+      if (!prefix) throw new BadRequestException('بادئة رقم الطلب مطلوبة');
+      data.orderNumberPrefix = prefix;
     }
 
-    if (Object.keys(data).length === 0) {
+    if (body.is_active !== undefined) {
+      data.isActive = Boolean(body.is_active);
+    }
+
+    const hasHours = Array.isArray(body.opening_hours);
+    if (Object.keys(data).length === 0 && !hasHours) {
       throw new BadRequestException('لا توجد بيانات للتحديث');
     }
 
     try {
-      await this.db.store.update({ where: { id: storeId }, data });
+      if (Object.keys(data).length > 0) {
+        await this.db.store.update({ where: { id: storeId }, data });
+      }
+      if (hasHours) {
+        await this.replaceOpeningHours(storeId, body.opening_hours!);
+      }
     } catch (err) {
+      if (err instanceof BadRequestException) throw err;
       console.error('[shop.updateStore] database error:', err);
       throw new BadRequestException('تعذر تحديث بيانات المكتبة');
     }
 
     return this.getMe(storeId, deviceId);
+  }
+
+  private async replaceOpeningHours(
+    storeId: string,
+    hours: Array<{
+      day_of_week: number;
+      open_time: string;
+      close_time: string;
+      is_closed: boolean;
+    }>,
+  ) {
+    if (hours.length !== 7) {
+      throw new BadRequestException('يجب تحديد ساعات العمل لجميع أيام الأسبوع');
+    }
+    const timeRe = /^([01]\d|2[0-3]):[0-5]\d$/;
+    const seen = new Set<number>();
+    for (const h of hours) {
+      const day = Number(h.day_of_week);
+      if (!Number.isInteger(day) || day < 0 || day > 6 || seen.has(day)) {
+        throw new BadRequestException('أيام ساعات العمل غير صالحة');
+      }
+      seen.add(day);
+      if (!timeRe.test(h.open_time) || !timeRe.test(h.close_time)) {
+        throw new BadRequestException('وقت الفتح أو الإغلاق غير صالح');
+      }
+    }
+    if (seen.size !== 7) {
+      throw new BadRequestException('يجب تحديد ساعات العمل لجميع أيام الأسبوع');
+    }
+
+    await this.db.$transaction(
+      hours.map((h) =>
+        this.db.storeOpeningHours.upsert({
+          where: {
+            storeId_dayOfWeek: {
+              storeId,
+              dayOfWeek: h.day_of_week,
+            },
+          },
+          create: {
+            storeId,
+            dayOfWeek: h.day_of_week,
+            openTime: h.open_time,
+            closeTime: h.close_time,
+            isClosed: Boolean(h.is_closed),
+          },
+          update: {
+            openTime: h.open_time,
+            closeTime: h.close_time,
+            isClosed: Boolean(h.is_closed),
+          },
+        }),
+      ),
+    );
   }
 
   async setDeviceSecurity(
@@ -720,4 +992,10 @@ export class ShopService {
     if (!order) throw new NotFoundException('الطلب غير موجود');
     return order;
   }
+}
+
+function parseBoolFlag(value: unknown): boolean {
+  if (value === true || value === 1 || value === '1' || value === 'true') return true;
+  if (value === false || value === 0 || value === '0' || value === 'false') return false;
+  return Boolean(value);
 }
