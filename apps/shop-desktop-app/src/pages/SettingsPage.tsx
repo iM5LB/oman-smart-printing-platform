@@ -11,6 +11,7 @@ import {
 import { Button, Input, Panel } from "../components/ui";
 import { AppSelect } from "../components/AppSelect";
 import { TimeSelect } from "../components/TimeSelect";
+import { LocationPicker } from "../components/LocationPicker";
 import { Icons } from "../components/icons";
 import { PageHeading } from "../components/PageHeading";
 import { useToast } from "../components/Toast";
@@ -20,7 +21,7 @@ import {
   queuePriorityAr,
 } from "../lib/labels";
 
-const APP_VERSION = "v0.1.1";
+const APP_VERSION = "v0.1.2";
 
 const DAY_LABELS = [
   "السبت",
@@ -567,26 +568,20 @@ export function SettingsPage() {
                       className="!py-1.5"
                     />
                   </Field>
-                  <Field label="خط العرض">
-                    <Input
-                      dir="ltr"
-                      inputMode="decimal"
-                      value={editLat}
-                      onChange={(e) => setEditLat(e.target.value)}
-                      placeholder="23.5880"
-                      className="!py-1.5"
+                  <div className="col-span-2">
+                    <LocationPicker
+                      latitude={editLat ? Number(editLat) : null}
+                      longitude={editLng ? Number(editLng) : null}
+                      onPick={(loc) => {
+                        setEditLat(String(loc.latitude));
+                        setEditLng(String(loc.longitude));
+                        if (loc.governorate) setEditGov(loc.governorate);
+                        if (loc.wilayat) setEditWilayat(loc.wilayat);
+                        if (loc.area) setEditArea(loc.area);
+                        if (loc.address) setEditAddress(loc.address);
+                      }}
                     />
-                  </Field>
-                  <Field label="خط الطول">
-                    <Input
-                      dir="ltr"
-                      inputMode="decimal"
-                      value={editLng}
-                      onChange={(e) => setEditLng(e.target.value)}
-                      placeholder="58.3829"
-                      className="!py-1.5"
-                    />
-                  </Field>
+                  </div>
                 </div>
               </div>
             </form>

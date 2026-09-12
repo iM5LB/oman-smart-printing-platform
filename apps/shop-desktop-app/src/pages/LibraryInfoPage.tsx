@@ -17,7 +17,7 @@ import {
 import { StoreBrandMark } from "../components/StoreBrandMark";
 import { formatStoredOs, getOsLabel } from "../lib/os";
 
-const APP_VERSION = "v0.1.1";
+const APP_VERSION = "v0.1.2";
 
 function dash(value: string | number | null | undefined) {
   if (value == null || value === "") return "—";

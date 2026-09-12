@@ -193,6 +193,34 @@ body {
   unicode-bidi: isolate;
 }
 
+.shop-map-canvas {
+  width: 100%;
+  background: #0f1624;
+}
+
+.shop-map-canvas .leaflet-container {
+  height: 100%;
+  min-height: 22rem;
+  font-family: inherit;
+  background: #0f1624;
+}
+
+.shop-map-pin {
+  background: transparent;
+  border: 0;
+}
+
+.shop-map-pin-dot {
+  display: block;
+  width: 1.1rem;
+  height: 1.1rem;
+  margin: 0.35rem auto 0;
+  border-radius: 999px;
+  background: var(--color-primary);
+  border: 2.5px solid #fff;
+  box-shadow: 0 2px 8px rgb(31 111 235 / 0.5);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-fade-up,
   .animate-pulse-dot,
