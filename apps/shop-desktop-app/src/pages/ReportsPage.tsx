@@ -90,7 +90,7 @@ export function ReportsPage() {
     orderStatusAr(o.status),
     paymentStatusAr(o.payment_status),
     money(o),
-    new Date(o.created_at).toLocaleString("ar-OM"),
+    new Date(o.created_at).toLocaleString("ar-OM", { timeZone: "Asia/Muscat" }),
   ]);
 
   const paymentHeaders = ["الطلب", "العميل", "المبلغ", "الحالة", "الطريقة", "التاريخ"];
@@ -101,8 +101,8 @@ export function ReportsPage() {
     paymentStatusAr(p.status),
     paymentMethodAr(p.in_store_method || p.method),
     p.paid_at
-      ? new Date(p.paid_at).toLocaleString("ar-OM")
-      : new Date(p.created_at).toLocaleString("ar-OM"),
+      ? new Date(p.paid_at).toLocaleString("ar-OM", { timeZone: "Asia/Muscat" })
+      : new Date(p.created_at).toLocaleString("ar-OM", { timeZone: "Asia/Muscat" }),
   ]);
 
   const onExcel = async () => {

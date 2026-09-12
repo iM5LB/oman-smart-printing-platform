@@ -4,6 +4,7 @@ import { ORDER_STATUS_AR, PAYMENT_STATUS_AR } from '@omsp/types';
 import { StatusTimeline } from '@/components/status-timeline';
 import { TrackFiles, type TrackFileItem } from '@/components/track-files';
 import { getApiBase } from '@/lib/api';
+import { formatOmanDateTime } from '@omsp/shared';
 
 type TrackOrder = {
   order_number: string;
@@ -66,7 +67,7 @@ export default async function TrackPage({
             {order.created_at && (
               <Row
                 label="تاريخ الطلب"
-                value={new Date(order.created_at).toLocaleString('ar-OM')}
+                value={formatOmanDateTime(order.created_at)}
               />
             )}
           </div>

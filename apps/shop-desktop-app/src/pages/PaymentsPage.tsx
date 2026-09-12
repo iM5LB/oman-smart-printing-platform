@@ -88,7 +88,9 @@ export function PaymentsPage() {
                       </Badge>
                     </td>
                     <td className="px-3.5 py-2.5 text-meta text-text-muted" dir="ltr">
-                      {(p.paid_at || p.created_at).slice(0, 16).replace("T", " ")}
+                      {new Date(p.paid_at || p.created_at).toLocaleString("ar-OM", {
+                        timeZone: "Asia/Muscat",
+                      })}
                     </td>
                   </tr>
                 ))}

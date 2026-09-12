@@ -97,7 +97,7 @@ function SectionTitle({
   trailing?: ReactNode;
 }) {
   return (
-    <div className="flex h-9 shrink-0 items-center gap-2 border-b border-border-default px-3">
+    <div className="flex h-8 shrink-0 items-center gap-2 border-b border-border-default px-2.5">
       <span className="flex size-5 items-center justify-center rounded-md bg-primary/15 text-primary">
         {icon}
       </span>
@@ -181,7 +181,7 @@ function ToggleRow({
   onChange: (next: boolean) => void;
 }) {
   return (
-    <div className="flex items-center justify-between gap-3 rounded-lg border border-border-default/80 bg-bg-base/40 px-2.5 py-2">
+    <div className="flex items-center justify-between gap-3 rounded-lg border border-border-default/80 bg-bg-base/40 px-2.5 py-1.5">
       <div className="min-w-0">
         <p className="text-meta font-medium text-text-primary">{title}</p>
         <p className="truncate text-caption text-text-muted">{description}</p>
@@ -448,12 +448,11 @@ export function SettingsPage() {
   return (
     <div className="page-fit gap-2 overflow-hidden">
       <PageHeading
-        icon={Icons.settings({ size: 22 })}
+        icon={Icons.settings({ size: 20 })}
         title="الإعدادات"
-        description="تشغيل المكتبة · البيانات · ساعات العمل · أمان الجهاز"
         actions={
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-meta text-text-muted tabular-nums" dir="ltr">
+          <div className="flex items-center gap-2">
+            <span className="text-caption text-text-muted tabular-nums" dir="ltr">
               {APP_VERSION}
             </span>
             <Button
@@ -461,9 +460,9 @@ export function SettingsPage() {
               variant="secondary"
               disabled={updateBusy}
               onClick={() => void runUpdateCheck()}
-              className="!py-1.5"
+              className="!px-2.5 !py-1"
             >
-              {Icons.refresh({ size: 14 })}
+              {Icons.refresh({ size: 13 })}
               {updateBusy
                 ? updateProgress
                   ? formatProgress(updateProgress)
@@ -474,313 +473,323 @@ export function SettingsPage() {
         }
       />
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-2 overflow-hidden lg:grid-cols-2 lg:grid-rows-2">
-        {/* Ops */}
-        <Panel className="flex min-h-0 flex-col overflow-hidden">
-          <SectionTitle title="الطباعة والتشغيل" icon={Icons.printer({ size: 13 })} />
-          <div className="scroll-y min-h-0 flex-1 space-y-2 p-2.5">
-            <ToggleRow
-              title="طباعة تلقائية للمدفوع مسبقاً"
-              description="بعد الدفع الإلكتروني يُرسل للطابعة مباشرة"
-              checked={autoPrintPaid}
-              disabled={opsBusy || !token}
-              onChange={(next) => {
-                setAutoPrintPaid(next);
-                void patchOps(
-                  { auto_print_paid_orders: next },
-                  next
-                    ? "تم تفعيل الطباعة التلقائية"
-                    : "تم إيقاف الطباعة التلقائية",
-                );
-              }}
-            />
-            <div className="grid grid-cols-2 gap-2">
-              <SelectField
-                label="الدفع عند الاستلام"
-                value={pickupPolicy}
-                disabled={opsBusy || !token}
-                options={PICKUP_POLICIES.map((v) => ({
-                  value: v,
-                  label: pickupPolicyAr(v),
-                }))}
-                onChange={(v) => {
-                  setPickupPolicy(v);
-                  void patchOps(
-                    { pay_at_pickup_print_policy: v },
-                    "تم حفظ سياسة الدفع عند الاستلام",
-                  );
-                }}
-              />
-              <SelectField
-                label="احتفاظ الملفات"
-                value={retention}
-                disabled={opsBusy || !token}
-                options={RETENTION_POLICIES.map((v) => ({
-                  value: v,
-                  label: fileRetentionAr(v),
-                }))}
-                onChange={(v) => {
-                  setRetention(v);
-                  void patchOps(
-                    { file_retention_policy: v },
-                    "تم حفظ سياسة احتفاظ الملفات",
-                  );
-                }}
-              />
-              <SelectField
-                label="أولوية المدفوع"
-                value={priority}
-                disabled={opsBusy || !token}
-                options={PRIORITIES.map((v) => ({
-                  value: v,
-                  label: queuePriorityAr(v),
-                }))}
-                onChange={(v) => {
-                  setPriority(v);
-                  void patchOps(
-                    { paid_orders_priority: v },
-                    "تم حفظ أولوية الطلبات المدفوعة",
-                  );
-                }}
-              />
-            </div>
-            <p className="text-caption text-text-muted">
-              الدفع داخل المكتبة لا يطبع تلقائياً — استخدم زر الطباعة.
-            </p>
-          </div>
-        </Panel>
-
-        {/* Security */}
-        <Panel className="flex min-h-0 flex-col overflow-hidden">
-          <SectionTitle title="أمان الجهاز" icon={Icons.settings({ size: 13 })} />
-          <form
-            className="scroll-y flex min-h-0 flex-1 flex-col gap-2 p-2.5"
-            onSubmit={(e) => void saveDeviceSecurity(e)}
-          >
-            <Field label="هاتف تأكيد OTP">
-              <Input
-                dir="ltr"
-                value={deviceConfirmPhone}
-                onChange={(e) => setDeviceConfirmPhone(e.target.value)}
-                placeholder="+968…"
-                required
-                className="!py-1.5"
-              />
-            </Field>
-            <div className="grid grid-cols-2 gap-2">
-              <Field label="كلمة مرور الجهاز">
-                <Input
-                  type="password"
-                  dir="ltr"
-                  value={devicePassword}
-                  onChange={(e) => setDevicePassword(e.target.value)}
-                  minLength={6}
-                  required
-                  placeholder="••••••••"
-                  className="!py-1.5"
-                />
-              </Field>
-              <Field label="تأكيد كلمة المرور">
-                <Input
-                  type="password"
-                  dir="ltr"
-                  value={devicePasswordConfirm}
-                  onChange={(e) => setDevicePasswordConfirm(e.target.value)}
-                  minLength={6}
-                  required
-                  placeholder="••••••••"
-                  className="!py-1.5"
-                />
-              </Field>
-            </div>
-            <div className="mt-auto flex justify-end pt-1">
-              <Button
-                type="submit"
-                disabled={savingSecurity || !token}
-                className="!px-4 !py-1.5"
-              >
-                {savingSecurity ? "جاري الحفظ…" : "حفظ أمان الجهاز"}
-              </Button>
-            </div>
-          </form>
-        </Panel>
-
-        {/* Store profile */}
-        <Panel className="flex min-h-0 flex-col overflow-hidden">
-          <SectionTitle title="بيانات المكتبة" icon={Icons.bag({ size: 13 })} />
-          <form
-            className="scroll-y flex min-h-0 flex-1 flex-col gap-2 p-2.5"
-            onSubmit={(e) => void saveStore(e)}
-          >
-            <div className="grid grid-cols-2 gap-x-2 gap-y-1.5">
-              <Field label="الاسم" className="col-span-2 sm:col-span-1">
-                <Input
-                  value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
-                  required
-                  className="!py-1.5"
-                />
-              </Field>
-              <Field label="الهاتف">
-                <Input
-                  dir="ltr"
-                  value={editPhone}
-                  onChange={(e) => setEditPhone(e.target.value)}
-                  placeholder="+968…"
-                  className="!py-1.5"
-                />
-              </Field>
-              <Field label="بادئة الطلب">
-                <Input
-                  dir="ltr"
-                  value={editPrefix}
-                  onChange={(e) => setEditPrefix(e.target.value.slice(0, 8))}
-                  placeholder="#"
-                  className="!py-1.5"
-                />
-              </Field>
-              <Field label="المحافظة">
-                <Input
-                  value={editGov}
-                  onChange={(e) => setEditGov(e.target.value)}
-                  className="!py-1.5"
-                />
-              </Field>
-              <Field label="الولاية">
-                <Input
-                  value={editWilayat}
-                  onChange={(e) => setEditWilayat(e.target.value)}
-                  className="!py-1.5"
-                />
-              </Field>
-              <Field label="المنطقة">
-                <Input
-                  value={editArea}
-                  onChange={(e) => setEditArea(e.target.value)}
-                  className="!py-1.5"
-                />
-              </Field>
-              <Field label="العنوان" className="col-span-2">
-                <Input
-                  value={editAddress}
-                  onChange={(e) => setEditAddress(e.target.value)}
-                  className="!py-1.5"
-                />
-              </Field>
-              <Field label="خط العرض">
-                <Input
-                  dir="ltr"
-                  inputMode="decimal"
-                  value={editLat}
-                  onChange={(e) => setEditLat(e.target.value)}
-                  placeholder="23.5880"
-                  className="!py-1.5"
-                />
-              </Field>
-              <Field label="خط الطول">
-                <Input
-                  dir="ltr"
-                  inputMode="decimal"
-                  value={editLng}
-                  onChange={(e) => setEditLng(e.target.value)}
-                  placeholder="58.3829"
-                  className="!py-1.5"
-                />
-              </Field>
-            </div>
-            <ToggleRow
-              title="المكتبة ظاهرة للعملاء"
-              description="عند الإيقاف تختفي من الدليل وطلبات الويب"
-              checked={storeActive}
-              disabled={savingProfile || opsBusy || !token}
-              onChange={(next) => {
-                setStoreActive(next);
-                void patchOps(
-                  { is_active: next },
-                  next ? "المكتبة ظاهرة للعملاء" : "المكتبة مخفية عن العملاء",
-                );
-              }}
-            />
-            <div className="mt-auto flex justify-end pt-1">
-              <Button
-                type="submit"
-                disabled={savingProfile || !token}
-                className="!px-4 !py-1.5"
-              >
-                {savingProfile ? "جاري الحفظ…" : "حفظ بيانات المكتبة"}
-              </Button>
-            </div>
-          </form>
-        </Panel>
-
-        {/* Hours */}
-        <Panel className="flex min-h-0 flex-col overflow-hidden">
-          <SectionTitle
-            title="ساعات العمل"
-            icon={Icons.clock({ size: 13 })}
-            trailing={
-              <Button
-                type="button"
-                variant="secondary"
-                disabled={savingHours || !token}
-                onClick={() => void saveHours()}
-                className="!px-2.5 !py-1"
-              >
-                {savingHours ? "…" : "حفظ الساعات"}
-              </Button>
-            }
-          />
-          <div className="scroll-y min-h-0 flex-1 p-2">
-            <div className="mb-1 grid grid-cols-[4.5rem_2.75rem_1fr_1fr] gap-1.5 px-1.5 text-[10px] text-text-muted">
-              <span>اليوم</span>
-              <span className="text-center">مغلق</span>
-              <span>من</span>
-              <span>إلى</span>
-            </div>
-            <div className="space-y-1">
-              {hours.map((h) => (
-                <div
-                  key={h.day_of_week}
-                  className={`grid grid-cols-[4.5rem_2.75rem_1fr_1fr] items-center gap-1.5 rounded-lg border px-1.5 py-1 ${
-                    h.is_closed
-                      ? "border-border-default/50 bg-bg-base/40"
-                      : "border-border-default bg-bg-elevated/50"
-                  }`}
-                >
-                  <span className="truncate text-meta font-medium text-text-primary">
-                    {DAY_LABELS[h.day_of_week]}
-                  </span>
-                  <div className="flex justify-center">
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-2 overflow-hidden lg:grid-cols-2">
+        <div className="flex min-h-0 flex-col">
+          <Panel className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <form
+              className="flex min-h-0 flex-1 flex-col"
+              onSubmit={(e) => void saveStore(e)}
+            >
+              <SectionTitle
+                title="بيانات المكتبة"
+                icon={Icons.bag({ size: 13 })}
+                trailing={
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] text-text-muted">ظاهرة</span>
                     <SwitchControl
                       compact
-                      checked={h.is_closed}
-                      aria-label={`${DAY_LABELS[h.day_of_week]} مغلق`}
-                      onChange={(next) =>
-                        setHour(h.day_of_week, { is_closed: next })
+                      checked={storeActive}
+                      aria-label="المكتبة ظاهرة للعملاء"
+                      disabled={savingProfile || opsBusy || !token}
+                      onChange={(next) => {
+                        setStoreActive(next);
+                        void patchOps(
+                          { is_active: next },
+                          next
+                            ? "المكتبة ظاهرة للعملاء"
+                            : "المكتبة مخفية عن العملاء",
+                        );
+                      }}
+                    />
+                    <Button
+                      type="submit"
+                      disabled={savingProfile || !token}
+                      className="!px-2.5 !py-1"
+                    >
+                      {savingProfile ? "…" : "حفظ"}
+                    </Button>
+                  </div>
+                }
+              />
+              <div className="scroll-y min-h-0 flex-1 p-2">
+                <div className="grid grid-cols-2 gap-x-2 gap-y-1.5">
+                  <Field label="الاسم">
+                    <Input
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      required
+                      className="!py-1.5"
+                    />
+                  </Field>
+                  <Field label="الهاتف">
+                    <Input
+                      dir="ltr"
+                      value={editPhone}
+                      onChange={(e) => setEditPhone(e.target.value)}
+                      placeholder="+968…"
+                      className="!py-1.5"
+                    />
+                  </Field>
+                  <Field label="المحافظة">
+                    <Input
+                      value={editGov}
+                      onChange={(e) => setEditGov(e.target.value)}
+                      className="!py-1.5"
+                    />
+                  </Field>
+                  <Field label="الولاية">
+                    <Input
+                      value={editWilayat}
+                      onChange={(e) => setEditWilayat(e.target.value)}
+                      className="!py-1.5"
+                    />
+                  </Field>
+                  <Field label="المنطقة">
+                    <Input
+                      value={editArea}
+                      onChange={(e) => setEditArea(e.target.value)}
+                      className="!py-1.5"
+                    />
+                  </Field>
+                  <Field label="بادئة الطلب">
+                    <Input
+                      dir="ltr"
+                      value={editPrefix}
+                      onChange={(e) => setEditPrefix(e.target.value.slice(0, 8))}
+                      placeholder="#"
+                      className="!py-1.5"
+                    />
+                  </Field>
+                  <Field label="العنوان" className="col-span-2">
+                    <Input
+                      value={editAddress}
+                      onChange={(e) => setEditAddress(e.target.value)}
+                      className="!py-1.5"
+                    />
+                  </Field>
+                  <Field label="خط العرض">
+                    <Input
+                      dir="ltr"
+                      inputMode="decimal"
+                      value={editLat}
+                      onChange={(e) => setEditLat(e.target.value)}
+                      placeholder="23.5880"
+                      className="!py-1.5"
+                    />
+                  </Field>
+                  <Field label="خط الطول">
+                    <Input
+                      dir="ltr"
+                      inputMode="decimal"
+                      value={editLng}
+                      onChange={(e) => setEditLng(e.target.value)}
+                      placeholder="58.3829"
+                      className="!py-1.5"
+                    />
+                  </Field>
+                </div>
+              </div>
+            </form>
+          </Panel>
+        </div>
+
+        <div className="flex min-h-0 flex-col gap-2">
+          <Panel className="shrink-0 overflow-hidden">
+            <SectionTitle title="الطباعة والتشغيل" icon={Icons.printer({ size: 13 })} />
+            <div className="space-y-2 p-2">
+              <ToggleRow
+                title="طباعة تلقائية للمدفوع مسبقاً"
+                description="بعد الدفع الإلكتروني يُرسل للطابعة مباشرة"
+                checked={autoPrintPaid}
+                disabled={opsBusy || !token}
+                onChange={(next) => {
+                  setAutoPrintPaid(next);
+                  void patchOps(
+                    { auto_print_paid_orders: next },
+                    next
+                      ? "تم تفعيل الطباعة التلقائية"
+                      : "تم إيقاف الطباعة التلقائية",
+                  );
+                }}
+              />
+              <div className="grid grid-cols-3 gap-1.5">
+                <SelectField
+                  label="الدفع عند الاستلام"
+                  value={pickupPolicy}
+                  disabled={opsBusy || !token}
+                  options={PICKUP_POLICIES.map((v) => ({
+                    value: v,
+                    label: pickupPolicyAr(v),
+                  }))}
+                  onChange={(v) => {
+                    setPickupPolicy(v);
+                    void patchOps(
+                      { pay_at_pickup_print_policy: v },
+                      "تم حفظ سياسة الدفع عند الاستلام",
+                    );
+                  }}
+                />
+                <SelectField
+                  label="احتفاظ الملفات"
+                  value={retention}
+                  disabled={opsBusy || !token}
+                  options={RETENTION_POLICIES.map((v) => ({
+                    value: v,
+                    label: fileRetentionAr(v),
+                  }))}
+                  onChange={(v) => {
+                    setRetention(v);
+                    void patchOps(
+                      { file_retention_policy: v },
+                      "تم حفظ سياسة احتفاظ الملفات",
+                    );
+                  }}
+                />
+                <SelectField
+                  label="أولوية المدفوع"
+                  value={priority}
+                  disabled={opsBusy || !token}
+                  options={PRIORITIES.map((v) => ({
+                    value: v,
+                    label: queuePriorityAr(v),
+                  }))}
+                  onChange={(v) => {
+                    setPriority(v);
+                    void patchOps(
+                      { paid_orders_priority: v },
+                      "تم حفظ أولوية الطلبات المدفوعة",
+                    );
+                  }}
+                />
+              </div>
+              <p className="text-caption text-text-muted">
+                الدفع داخل المكتبة لا يطبع تلقائياً — استخدم زر الطباعة.
+              </p>
+            </div>
+          </Panel>
+
+          <Panel className="shrink-0 overflow-hidden">
+            <form onSubmit={(e) => void saveDeviceSecurity(e)}>
+              <SectionTitle
+                title="أمان الجهاز"
+                icon={Icons.settings({ size: 13 })}
+                trailing={
+                  <Button
+                    type="submit"
+                    disabled={savingSecurity || !token}
+                    className="!px-2.5 !py-1"
+                  >
+                    {savingSecurity ? "…" : "حفظ"}
+                  </Button>
+                }
+              />
+              <div className="grid grid-cols-3 gap-1.5 p-2">
+                <Field label="هاتف تأكيد OTP">
+                  <Input
+                    dir="ltr"
+                    value={deviceConfirmPhone}
+                    onChange={(e) => setDeviceConfirmPhone(e.target.value)}
+                    placeholder="+968…"
+                    required
+                    className="!py-1.5"
+                  />
+                </Field>
+                <Field label="كلمة مرور الجهاز">
+                  <Input
+                    type="password"
+                    dir="ltr"
+                    value={devicePassword}
+                    onChange={(e) => setDevicePassword(e.target.value)}
+                    minLength={6}
+                    required
+                    placeholder="••••••••"
+                    className="!py-1.5"
+                  />
+                </Field>
+                <Field label="تأكيد كلمة المرور">
+                  <Input
+                    type="password"
+                    dir="ltr"
+                    value={devicePasswordConfirm}
+                    onChange={(e) => setDevicePasswordConfirm(e.target.value)}
+                    minLength={6}
+                    required
+                    placeholder="••••••••"
+                    className="!py-1.5"
+                  />
+                </Field>
+              </div>
+            </form>
+          </Panel>
+
+          <Panel className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <SectionTitle
+              title="ساعات العمل"
+              icon={Icons.clock({ size: 13 })}
+              trailing={
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={savingHours || !token}
+                  onClick={() => void saveHours()}
+                  className="!px-2.5 !py-1"
+                >
+                  {savingHours ? "…" : "حفظ"}
+                </Button>
+              }
+            />
+            <div className="scroll-y min-h-0 flex-1 p-2">
+              <div className="mb-1 grid grid-cols-[4.25rem_2.5rem_1fr_1fr] gap-1.5 px-1 text-[10px] text-text-muted">
+                <span>اليوم</span>
+                <span className="text-center">مغلق</span>
+                <span>من</span>
+                <span>إلى</span>
+              </div>
+              <div className="space-y-1">
+                {hours.map((h) => (
+                  <div
+                    key={h.day_of_week}
+                    className={`grid grid-cols-[4.25rem_2.5rem_1fr_1fr] items-center gap-1.5 rounded-lg border px-1.5 py-1 ${
+                      h.is_closed
+                        ? "border-border-default/50 bg-bg-base/40"
+                        : "border-border-default bg-bg-elevated/50"
+                    }`}
+                  >
+                    <span className="truncate text-meta font-medium text-text-primary">
+                      {DAY_LABELS[h.day_of_week]}
+                    </span>
+                    <div className="flex justify-center">
+                      <SwitchControl
+                        compact
+                        checked={h.is_closed}
+                        aria-label={`${DAY_LABELS[h.day_of_week]} مغلق`}
+                        onChange={(next) =>
+                          setHour(h.day_of_week, { is_closed: next })
+                        }
+                      />
+                    </div>
+                    <TimeSelect
+                      aria-label={`${DAY_LABELS[h.day_of_week]} من`}
+                      disabled={h.is_closed}
+                      value={h.open_time}
+                      onChange={(open_time) =>
+                        setHour(h.day_of_week, { open_time })
+                      }
+                    />
+                    <TimeSelect
+                      aria-label={`${DAY_LABELS[h.day_of_week]} إلى`}
+                      disabled={h.is_closed}
+                      value={h.close_time}
+                      onChange={(close_time) =>
+                        setHour(h.day_of_week, { close_time })
                       }
                     />
                   </div>
-                  <TimeSelect
-                    aria-label={`${DAY_LABELS[h.day_of_week]} من`}
-                    disabled={h.is_closed}
-                    value={h.open_time}
-                    onChange={(open_time) =>
-                      setHour(h.day_of_week, { open_time })
-                    }
-                  />
-                  <TimeSelect
-                    aria-label={`${DAY_LABELS[h.day_of_week]} إلى`}
-                    disabled={h.is_closed}
-                    value={h.close_time}
-                    onChange={(close_time) =>
-                      setHour(h.day_of_week, { close_time })
-                    }
-                  />
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
-        </Panel>
+          </Panel>
+        </div>
       </div>
     </div>
   );

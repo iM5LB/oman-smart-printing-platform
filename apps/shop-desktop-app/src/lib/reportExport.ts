@@ -85,7 +85,7 @@ export async function exportPdfHtml(opts: {
   summary: { label: string; value: string }[];
   tables: { title: string; headers: string[]; rows: string[][] }[];
 }): Promise<"opened" | "saved" | "cancelled"> {
-  const when = new Date().toLocaleString("ar-OM");
+  const when = new Date().toLocaleString("ar-OM", { timeZone: "Asia/Muscat" });
   const summaryHtml = opts.summary
     .map(
       (s) =>

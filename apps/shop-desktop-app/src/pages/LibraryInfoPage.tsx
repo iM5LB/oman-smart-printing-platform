@@ -403,7 +403,9 @@ export function LibraryInfoPage() {
               {device?.last_connected_at ? (
                 <p className="truncate text-caption text-text-muted" dir="ltr">
                   آخر اتصال ·{" "}
-                  {new Date(device.last_connected_at).toLocaleString("ar-OM")}
+                  {new Date(device.last_connected_at).toLocaleString("ar-OM", {
+                    timeZone: "Asia/Muscat",
+                  })}
                 </p>
               ) : (
                 <p className="text-caption text-text-muted">الجهاز المرتبط</p>

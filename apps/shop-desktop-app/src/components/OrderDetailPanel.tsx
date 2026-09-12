@@ -43,17 +43,17 @@ function money(o: ShopOrder) {
 
 function formatOrderTime(iso: string) {
   const d = new Date(iso);
-  const now = new Date();
+  const oman = { timeZone: "Asia/Muscat" } as const;
   const sameDay =
-    d.getFullYear() === now.getFullYear() &&
-    d.getMonth() === now.getMonth() &&
-    d.getDate() === now.getDate();
+    d.toLocaleDateString("en-CA", oman) ===
+    new Date().toLocaleDateString("en-CA", oman);
   const time = d.toLocaleTimeString("ar-OM", {
+    ...oman,
     hour: "numeric",
     minute: "2-digit",
   });
   if (sameDay) return `اليوم ${time}`;
-  return `${d.toLocaleDateString("ar-OM")} ${time}`;
+  return `${d.toLocaleDateString("ar-OM", oman)} ${time}`;
 }
 
 function DetailRow({

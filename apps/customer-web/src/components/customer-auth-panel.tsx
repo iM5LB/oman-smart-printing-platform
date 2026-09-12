@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ArrowRight, Package, X } from 'lucide-react';
-import { getPhoneErrorMessageAr } from '@omsp/shared';
+import { formatOmanDate, formatOmanDateTime, getPhoneErrorMessageAr } from '@omsp/shared';
 import { ORDER_STATUS_AR, PAYMENT_STATUS_AR } from '@omsp/types';
 import {
   fetchMyOrders,
@@ -312,7 +312,7 @@ export function CustomerAuthPanel({
                           {ORDER_STATUS_AR[o.status] ?? o.status}
                         </p>
                         <p className="mt-0.5 text-xs text-text-muted">
-                          {new Date(o.created_at).toLocaleDateString('ar-OM')}
+                          {formatOmanDate(o.created_at)}
                           {o.files[0] ? ` · ${o.files[0]}` : ''}
                         </p>
                       </div>
@@ -343,7 +343,7 @@ export function CustomerAuthPanel({
                 <div>
                   <p className="order-detail-label">التاريخ</p>
                   <p className="order-detail-value">
-                    {new Date(selected.created_at).toLocaleString('ar-OM')}
+                    {formatOmanDateTime(selected.created_at)}
                   </p>
                 </div>
                 <div className="order-detail-full">
