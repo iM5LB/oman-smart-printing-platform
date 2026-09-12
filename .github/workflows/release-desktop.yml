@@ -113,7 +113,7 @@ jobs:
             }
           } | ConvertTo-Json -Depth 5
           Set-Content -Path apps/shop-desktop-app/src-tauri/tauri.windows-sign.json -Value $cfg -Encoding utf8
-          echo "TAURI_EXTRA_CONFIG=apps/shop-desktop-app/src-tauri/tauri.windows-sign.json" >> $env:GITHUB_ENV
+          echo "TAURI_EXTRA_CONFIG=src-tauri/tauri.windows-sign.json" >> $env:GITHUB_ENV
 
       - name: Setup Azure Trusted Signing
         if: steps.codesign.outputs.mode == 'azure'
@@ -139,14 +139,14 @@ jobs:
             }
           } | ConvertTo-Json -Depth 5
           Set-Content -Path apps/shop-desktop-app/src-tauri/tauri.windows-sign.json -Value $cfg -Encoding utf8
-          echo "TAURI_EXTRA_CONFIG=apps/shop-desktop-app/src-tauri/tauri.windows-sign.json" >> $env:GITHUB_ENV
+          echo "TAURI_EXTRA_CONFIG=src-tauri/tauri.windows-sign.json" >> $env:GITHUB_ENV
 
       - name: Write updater-only merge config
         if: steps.codesign.outputs.mode == 'none'
         run: |
           $cfg = @{ bundle = @{ createUpdaterArtifacts = $true } } | ConvertTo-Json -Depth 5
           Set-Content -Path apps/shop-desktop-app/src-tauri/tauri.windows-sign.json -Value $cfg -Encoding utf8
-          echo "TAURI_EXTRA_CONFIG=apps/shop-desktop-app/src-tauri/tauri.windows-sign.json" >> $env:GITHUB_ENV
+          echo "TAURI_EXTRA_CONFIG=src-tauri/tauri.windows-sign.json" >> $env:GITHUB_ENV
 
       - name: Build Tauri app & publish GitHub Release
         uses: tauri-apps/tauri-action@v0
